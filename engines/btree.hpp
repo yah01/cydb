@@ -27,7 +27,7 @@ namespace cyber
 {
     constexpr uint64_t PAGE_SIZE = 16 << 10; // 16KiB
 
-    enum class CellType : uint8_t
+    enum struct CellType : uint8_t
     {
         KeyCell = 1,
         KeyValueCell = 2,
