@@ -67,18 +67,17 @@ void test_btree()
 		exit(-1);
 	}
 	s = engine->get("hello");
-	if (s.err != cyber::OpError::KeyNotFound)
-	{
-		std::cout << "not right\n";
-		exit(-1);
-	}
+	std::cout << s.value << "\n";
+
+	s = engine->get("test_buf");
+	std::cout << s.value << "\n";
 
 	engine->set("hello", "world");
 	s = engine->get("hello");
 	std::cout << s.value << "\n";
 
 	std::cout << "delete engine\n";
-	
+
 	delete engine;
 	engine = new cyber::BTree();
 	s = engine->open("testdb");
@@ -94,18 +93,23 @@ void test_btree()
 	engine->set("test_buf", "in buffer");
 	s = engine->get("test_buf");
 	std::cout << s.value << "\n";
-	
+
 	s = engine->get("hello");
 	std::cout << s.value << "\n";
 
-	// engine->remove("hello");
-	// s = engine->get("hello");
-	// assert(s.err == cyber::OpError::KeyNotFound);
+	engine->remove("hello");
+	s = engine->get("hello");
+	if (s.err != cyber::OpError::KeyNotFound)
+	{
+		std::cout << "not right\n";
+		exit(-1);
+	}
+
+	delete engine;
 }
 
 void test_btree_reopen()
 {
-	
 }
 
 int main()
