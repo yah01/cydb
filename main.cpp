@@ -36,7 +36,7 @@
 #include <cassert>
 
 #include "engines/rocksdb.hpp"
-#include "engines/btree.hpp"
+#include "engines/btree/btree.hpp"
 
 void test_rocksdb()
 {

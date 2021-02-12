@@ -31,6 +31,6 @@ namespace cyber
         virtual OpStatus set(const std::string &key, std::string value) = 0;
         virtual OpStatus remove(const std::string &key) = 0;
         virtual OpStatus scan(const std::string &start_key, const std::string &end_key) = 0;
-        virtual ~KvEngine(){};
+        virtual ~KvEngine(){}
     };
 }; // namespace cyber
