@@ -94,6 +94,7 @@ void test_btree()
 	engine->set("test_buf", "in buffer");
 	s = engine->get("test_buf");
 	std::cout << s.value << "\n";
+	
 	s = engine->get("hello");
 	std::cout << s.value << "\n";
 
