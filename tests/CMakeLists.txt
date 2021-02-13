@@ -25,5 +25,5 @@ add_subdirectory(${CMAKE_CURRENT_BINARY_DIR}/googletest-src
 
 # Now simply link against gtest or gtest_main as needed. Eg
 add_executable(engine_test engine_test.cpp)
-target_link_libraries(engine_test gtest_main cyengine)
+target_link_libraries(engine_test gtest_main cydb_lib)
 add_test(NAME engine_test COMMAND engine_test)
