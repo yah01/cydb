@@ -1,16 +1,16 @@
 cmake_minimum_required(VERSION 3.5)
 
-project(cydb)
+project(cydb CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 
-find_library(ROCKSDB_LIB rocksdb)
+add_subdirectory(src)
 
-SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pthread")
+enable_testing()
+add_subdirectory(tests)
 
-add_executable(cydb main.cpp)
 
-target_link_libraries(cydb ${ROCKSDB_LIB})
+
 
 
 
