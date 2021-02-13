@@ -16,3 +16,6 @@ target_include_directories(
     PUBLIC
         ${CMAKE_CURRENT_LIST_DIR}/lib
 )
+
+add_executable(cydb_server bin/main.cpp)
+target_link_libraries(cydb_server cyengine)
