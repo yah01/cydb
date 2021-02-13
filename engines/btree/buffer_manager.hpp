@@ -108,7 +108,7 @@ namespace cyber
             return page_num - 1;
         }
 
-        const int &ask_parent(uint32_t node_id) const { return parent[node_id]; }
+        const int32_t &ask_parent(uint32_t node_id) const { return parent[node_id]; }
 
     private:
         char *load_page(const uint32_t &page_id)
@@ -137,7 +137,8 @@ namespace cyber
             {
                 if (!evict()) // failed to evict
                 {
-                    return nullptr;
+                    // todo: now, do nothing
+                    // return nullptr;
                 }
             }
 

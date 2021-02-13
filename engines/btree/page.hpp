@@ -72,6 +72,8 @@ namespace cyber
 
         virtual size_t key_size() const = 0;
         virtual size_t size() const = 0;
+        virtual void write_key(const char *key, const size_t n) = 0;
+        virtual void write_key(const std::string &key) { write_key(key.c_str(), key.length()); }
 
         // -1 -> less
         // 0  -> equal
@@ -102,12 +104,36 @@ namespace cyber
             header = (KeyCellHeader *)cell;
             key = cell + KEY_CELL_HEADER_SIZE;
         }
+
         virtual ~KeyCell() {}
 
         int32_t child() const { return header->child_id; }
 
         virtual size_t key_size() const { return header->key_size; }
         virtual size_t size() const { return KEY_CELL_HEADER_SIZE + header->key_size; }
+        std::string build_key_string() { return std::string(key, header->key_size); }
+
+        inline void write_key(const char *key, const size_t n)
+        {
+            header->key_size = n;
+            memcpy(this->key, key, n);
+        }
+        inline void write_key(const std::string &key) { write_key(key.c_str(), key.length()); }
+
+        inline bool operator<(const KeyCell &rhs) const
+        {
+            for (int i = 0; i < header->key_size && i < rhs.header->key_size; i++)
+            {
+                if (key[i] < rhs.key[i])
+                    return true;
+                else if (key[i] > rhs.key[i])
+                    return false;
+            }
+
+            return (header->key_size < rhs.header->key_size) ? true : false;
+        }
+
+        void write_child(const int32_t child_id) { header->child_id = child_id; }
     };
     class KeyValueCell : public Cell
     {
@@ -158,10 +184,8 @@ namespace cyber
             header->key_size = n;
             memcpy(this->key, key, n);
         }
-        inline void write_key(const std::string &key)
-        {
-            write_key(key.c_str(), key.length());
-        }
+        void write_key(const std::string &key) { write_key(key.c_str(), key.length()); }
+
         inline void write_value(const char *value, const size_t n)
         {
             header->value_size = n;
@@ -173,6 +197,11 @@ namespace cyber
         }
     };
 
+    enum WriteError : uint32_t
+    {
+        Failed = 0,
+        WriteHeader = 1,
+    };
     class BTreeNode
     {
     public:
@@ -198,72 +227,98 @@ namespace cyber
 
         int32_t find_child(const std::string &key)
         {
-            size_t index = find_index(key);
+            size_t index = find_child_index(key);
             if (index < header->data_num)
                 return key_cell(index).child();
             return header->rightmost_child;
         }
 
-        // equal to lower_bound
-        // return value -1 means there is no entry.
-        size_t find_index(const std::string &key)
+        size_t find_child_index(const std::string &key)
         {
-            return std::lower_bound(pointers, pointers + header->data_num, key, [&](const uint32_t &offset, const std::string &key) {
-                       if (header->type == CellType::KeyCell)
-                           return KeyCell(page + offset).compare_by_key(key) < 0;
-                       else
-                           return KeyValueCell(page + offset).compare_by_key(key) < 0;
+            return std::upper_bound(pointers, pointers + header->data_num, key, [&](const std::string &key, const uint32_t &offset) {
+                       return KeyCell(page + offset).compare_by_key(key) < 0;
                    }) -
                    pointers;
-
-            // size_t l = 0,
-            //        r = header->data_num, mid;
-            // while (l < r)
-            // {
-            //     mid = (l + r) >> 1;
-            //     KeyValueCell kv_cell(key_value_cell(mid));
-            //     int cmp_res = kv_cell.compare_by_key(key);
-
-            //     if (cmp_res == -1)
-            //     {
-            //         l = mid + 1;
-            //     }
-            //     else if (cmp_res == 0)
-            //     {
-            //         return mid;
-            //     }
-            //     else
-            //         r = mid;
-            // }
-
-            // return r;
         }
 
-        uint32_t update_value(const std::string &value, size_t index)
+        // equal to lower_bound
+        // return value -1 means there is no entry.
+        size_t find_value_index(const std::string &key)
         {
-            KeyValueCell kv_cell(key_value_cell(index));
+            return std::lower_bound(pointers, pointers + header->data_num, key, [&](const uint32_t &offset, const std::string &key) {
+                       return KeyValueCell(page + offset).compare_by_key(key) < 0;
+                   }) -
+                   pointers;
+        }
 
-            // append the new value, and mark the old cell as removed
-            if (value.length() > kv_cell.value_size())
+        uint32_t update_child(size_t index, const int32_t &child)
+        {
+            if (index >= header->data_num)
             {
-                if (free_space() >= kv_cell.size() - kv_cell.value_size() + value.length())
-                {
-                    remove_cell(index);
-                    uint32_t cell_offset = insert_cell(kv_cell.build_key_string(), value);
-                    if (cell_offset == 0)
-                        return 0;
+                header->rightmost_child = child;
+                return 1;
+            }
 
-                    pointers[index] = cell_offset;
+            key_cell(index).write_child(child);
+            return pointers[index];
+        }
+
+        uint32_t insert_child(const std::string &key, const int32_t child)
+        {
+            size_t index = find_child_index(key);
+            if (index >= header->data_num)
+            {
+                if (header->rightmost_child == -1)
+                {
+                    header->rightmost_child = child;
+                    return WriteError::WriteHeader;
                 }
                 else
-                    return 0;
+                    return WriteError::Failed;
+            }
+
+            uint32_t cell_offset = insert_kcell(key, child);
+            if (cell_offset == 0)
+                return WriteError::Failed;
+
+            if (header->cell_end > cell_offset)
+                header->cell_end = cell_offset;
+
+            pointers[header->data_num] = cell_offset;
+            header->data_num++;
+
+            KeyCell kcell(page + cell_offset);
+            for (int i = header->data_num - 1; i > index; i--)
+                std::swap(pointers[i - 1], pointers[i]);
+
+            return cell_offset;
+        }
+
+        uint32_t update_value(size_t index, const std::string &value)
+        {
+            KeyValueCell kvcell(key_value_cell(index));
+
+            // append the new value, and mark the old cell as removed
+            if (value.length() > kvcell.value_size())
+            {
+                if (free_space() >= kvcell.size() - kvcell.value_size() + value.length())
+                {
+                    remove_cell(index);
+                    uint32_t cell_offset = insert_kvcell(kvcell.build_key_string(), value);
+                    if (cell_offset == 0)
+                        return WriteError::Failed;
+
+                    return pointers[index] = cell_offset;
+                }
+                else
+                    return WriteError::Failed;
             }
             else
             {
-                size_t len = kv_cell.value_size() - value.length();
-                kv_cell.write_value(value);
+                size_t len = kvcell.value_size() - value.length();
+                kvcell.write_value(value);
                 if (len > 0)
-                    insert_free_cell(AvailableEntry(pointers[index] + kv_cell.size(), len));
+                    insert_free_cell(AvailableEntry(pointers[index] + kvcell.size(), len));
                 return pointers[index];
             }
         }
@@ -272,29 +327,21 @@ namespace cyber
         // return 0 when there is no enough free space
         uint32_t insert_value(const std::string &key, const std::string &value)
         {
-            uint32_t cell_offset = insert_cell(key, value);
+            uint32_t cell_offset = insert_kvcell(key, value);
             if (cell_offset == 0)
                 return 0;
 
             if (header->cell_end > cell_offset)
                 header->cell_end = cell_offset;
 
+            size_t index = find_value_index(key);
             pointers[header->data_num] = cell_offset;
             header->data_num++;
 
             // todo optimization: use binary search to find the final index, avoid to compare keys too many times
-            KeyValueCell kv_cell(page + cell_offset);
-            for (int i = header->data_num - 1; i > 0; i--)
-            {
-                if (kv_cell < key_value_cell(i - 1))
-                {
-                    std::swap(pointers[i - 1], pointers[i]);
-                }
-                else
-                {
-                    break;
-                }
-            }
+            KeyValueCell kvcell(page + cell_offset);
+            for (int i = header->data_num - 1; i > index; i--)
+                std::swap(pointers[i - 1], pointers[i]);
 
             return cell_offset;
         }
@@ -343,10 +390,14 @@ namespace cyber
                           << "checksum = " << header->checksum << "\n"
                           << "header.checksum = " << old_checksum << "\n";
                 exit(-1);
+
+                return false;
             }
+
+            return true;
         }
 
-        bool init_available_list()
+        void init_available_list()
         {
             uint32_t tmp_pointers[header->data_num];
             memcpy(tmp_pointers, pointers, sizeof(tmp_pointers));
@@ -429,36 +480,68 @@ namespace cyber
             }
         }
 
-        // no side effects insert
-        // header and pointers will not be modified
-        uint32_t insert_cell(const std::string &key, const std::string &value)
+        uint32_t insert_kcell(const std::string &key, const int32_t &child)
         {
-            size_t kv_cell_size = KEY_VALUE_CELL_HEADER_SIZE + key.length() + value.length();
-            auto it = std::find_if(available_list.begin(), available_list.end(), [&kv_cell_size](const AvailableEntry &entry) {
-                return entry.len >= kv_cell_size;
+            size_t kcell_size = KEY_CELL_HEADER_SIZE + key.length();
+            auto it = std::find_if(available_list.begin(), available_list.end(), [&kcell_size](const AvailableEntry &entry) {
+                return entry.len >= kcell_size;
             });
 
             uint32_t cell_offset;
             if (it != available_list.end() && free_space() >= sizeof(uint32_t))
             {
                 cell_offset = it->offset;
-                if (it->len > kv_cell_size)
-                    it->offset += kv_cell_size;
+                if (it->len > kcell_size)
+                    it->offset += kcell_size;
                 else
                     available_list.erase(it);
             }
-            else if (free_space() >= kv_cell_size + sizeof(uint32_t))
+            else if (free_space() >= kcell_size + sizeof(uint32_t))
             {
-                cell_offset = header->cell_end - kv_cell_size;
+                cell_offset = header->cell_end - kcell_size;
             }
             else
             {
                 return 0;
             }
 
-            KeyValueCell kv_cell(page + cell_offset, key.length());
-            kv_cell.write_key(key);
-            kv_cell.write_value(value);
+            KeyCell kcell(page + cell_offset);
+            kcell.write_key(key);
+            kcell.write_child(child);
+
+            return cell_offset;
+        }
+
+        // no side effects insert
+        // header and pointers will not be modified
+        uint32_t insert_kvcell(const std::string &key, const std::string &value)
+        {
+            size_t kvcell_size = KEY_VALUE_CELL_HEADER_SIZE + key.length() + value.length();
+            auto it = std::find_if(available_list.begin(), available_list.end(), [&kvcell_size](const AvailableEntry &entry) {
+                return entry.len >= kvcell_size;
+            });
+
+            uint32_t cell_offset;
+            if (it != available_list.end() && free_space() >= sizeof(uint32_t))
+            {
+                cell_offset = it->offset;
+                if (it->len > kvcell_size)
+                    it->offset += kvcell_size;
+                else
+                    available_list.erase(it);
+            }
+            else if (free_space() >= kvcell_size + sizeof(uint32_t))
+            {
+                cell_offset = header->cell_end - kvcell_size;
+            }
+            else
+            {
+                return 0;
+            }
+
+            KeyValueCell kvcell(page + cell_offset, key.length());
+            kvcell.write_key(key);
+            kvcell.write_value(value);
 
             return cell_offset;
         }
