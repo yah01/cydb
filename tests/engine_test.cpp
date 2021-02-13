@@ -10,11 +10,6 @@ namespace
     class BTreeTest : public ::testing::Test
     {
     protected:
-        virtual ~BTreeTest()
-        {
-            std::filesystem::remove_all("testdb");
-        }
-
         void SetUp() override
         {
             engine = new BTree();
@@ -24,6 +19,11 @@ namespace
         void TearDown() override
         {
             delete engine;
+        }
+
+        static void TearDownTestSuite()
+        {
+            std::filesystem::remove_all("testdb");
         }
 
         KvEngine *engine;
@@ -38,6 +38,33 @@ namespace
         s = engine->get("hello");
         EXPECT_EQ(s.err, OpError::Ok);
         EXPECT_STREQ(s.value.c_str(), "world");
+
+        s = engine->set("cyber", "yah2er0ne");
+        EXPECT_EQ(s.err, OpError::Ok);
+    }
+
+    TEST_F(BTreeTest, reopen)
+    {
+        auto s = engine->get("hello");
+        EXPECT_EQ(s.err, OpError::Ok);
+        EXPECT_STREQ(s.value.c_str(), "world");
+
+        s = engine->get("cyber");
+        EXPECT_EQ(s.err, OpError::Ok);
+        EXPECT_STREQ(s.value.c_str(), "yah2er0ne");
+    }
+
+    TEST_F(BTreeTest, remove)
+    {
+        auto s = engine->remove("hello");
+        EXPECT_EQ(s.err, OpError::Ok) << "can't remove hello";
+
+        s = engine->get("hello");
+        EXPECT_EQ(s.err, OpError::KeyNotFound) << "get(hello) wrong";
+
+        s = engine->get("cyber");
+        EXPECT_EQ(s.err, OpError::Ok) << "get(cyber) wrong";
+        EXPECT_STREQ(s.value.c_str(), "yah2er0ne") << "get(cyber) = " << s.value;
     }
 
 } // namespace

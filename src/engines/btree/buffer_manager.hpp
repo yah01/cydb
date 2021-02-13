@@ -51,7 +51,6 @@ namespace cyber
             data_file = open64(data_file_path.c_str(), O_CREAT | O_RDWR | O_SYNC, S_IRUSR | S_IWUSR);
             if (data_file == -1)
             {
-                std::cout << "failed to open file\n";
                 exit(-1);
             }
 
@@ -119,13 +118,6 @@ namespace cyber
             ssize_t n = pread64(data_file, page, PAGE_SIZE, page_pos);
             if (n == -1)
                 puts(strerror(errno));
-
-            std::cout << "read header bytes:\n";
-            for (int i = 0; i < PAGE_HEADER_SIZE; i++)
-            {
-                printf("%x ", page[i] & 0xff);
-            }
-            std::cout << "\n";
 
             return page;
         }

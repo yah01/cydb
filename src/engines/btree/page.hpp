@@ -8,7 +8,6 @@ Should always use them by row pointer, except you try to create a new region.
 #include <cstdint>
 #include <string>
 #include <cstring>
-#include <iostream>
 
 namespace cyber
 {
@@ -349,6 +348,7 @@ namespace cyber
         {
             remove_cell(index);
             std::memmove(pointers + index, pointers + index + 1, (header->data_num - index - 1) * sizeof(uint32_t));
+            header->data_num--;
         }
 
         const char *raw_page() { return this->page; }
@@ -385,11 +385,7 @@ namespace cyber
             if (old_checksum != cal_checksum())
             {
                 valid = false;
-                std::cerr << "page checksum fails:\n"
-                          << "checksum = " << header->checksum << "\n"
-                          << "header.checksum = " << old_checksum << "\n";
                 exit(-1);
-
                 return false;
             }
 

@@ -47,7 +47,7 @@ namespace cyber
             BTreeNode *node = go_to_leaf(0, key);
 
             size_t index = node->find_value_index(key);
-            if (index > node->data_num()) // no data in the node
+            if (index >= node->data_num()) // no data in the node
             {
                 return OpStatus(OpError::KeyNotFound);
             }
