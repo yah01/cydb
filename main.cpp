@@ -108,8 +108,20 @@ void test_btree()
 	delete engine;
 }
 
-void test_btree_reopen()
+void test_btree_split()
 {
+	cyber::KvEngine *engine = new cyber::BTree();
+	auto s = engine->open("testdb");
+	if (s.err != cyber::OpError::Ok)
+	{
+		std::cout << "can't open\n";
+		exit(-1);
+	}
+
+	for (int i = 0; i < 4096; i++)
+	{
+		
+	}
 }
 
 int main()

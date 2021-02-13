@@ -215,7 +215,6 @@ namespace cyber
 
             init_check();
             init_available_list();
-            // init_read_data();
         }
 
         inline CellType cell_type() const { return header->type; }
