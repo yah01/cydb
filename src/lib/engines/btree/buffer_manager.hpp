@@ -1,20 +1,25 @@
 #pragma once
 
-#include <cstdint>
+#include <unordered_set>
 #include <unordered_map>
 #include <filesystem>
-#include <iostream>
-#include <vector>
-#include <unordered_set>
 #include <fcntl.h>
 #include <unistd.h>
 
-#include "../kv_engine.hpp"
+#include "engines/kv_engine.hpp"
 
 #include "page.hpp"
 
 namespace cyber
 {
+    uint64_t file_size(int fd)
+    {
+        uint64_t offset = lseek64(fd, 0, SEEK_SET);
+        uint64_t size = lseek(fd, 0, SEEK_END);
+        lseek(fd, offset, SEEK_SET);
+        return size;
+    }
+
     struct Metadata
     {
         uint32_t root_id;
@@ -36,7 +41,7 @@ namespace cyber
         {
             for (auto pair : buffer_map)
             {
-                store(pair.second);
+                store_page(pair.second);
             }
             close(data_file);
 
@@ -49,14 +54,6 @@ namespace cyber
                 exit(-1);
             }
             close(metadata_file);
-        }
-
-        static uint64_t file_size(int fd)
-        {
-            uint64_t offset = lseek64(fd, 0, SEEK_SET);
-            uint64_t size = lseek(fd, 0, SEEK_END);
-            lseek(fd, offset, SEEK_SET);
-            return size;
         }
 
         OpStatus open(const char *path)
@@ -93,6 +90,7 @@ namespace cyber
             return OpStatus(OpError::Ok);
         }
 
+        // node methods
         BTreeNode *get(const uint32_t &page_id)
         {
             BTreeNode *res = nullptr;
@@ -114,15 +112,12 @@ namespace cyber
 
             return res;
         }
-
         BTreeNode *get_root()
         {
             return get(metadata.root_id);
         }
-
         inline void pin(const uint32_t &page_id) { pinned_page.insert(page_id); }
         inline void unpin(const uint32_t &page_id) { pinned_page.erase(page_id); }
-
         uint32_t allocate_page(CellType cell_type, int parent = -1)
         {
             PageHeader header;
@@ -142,6 +137,7 @@ namespace cyber
         }
 
     private:
+        // read page from disk
         char *load_page(const uint32_t &page_id)
         {
             char *page = new char[PAGE_SIZE];
@@ -153,7 +149,19 @@ namespace cyber
 
             return page;
         }
+        // write a page to disk
+        bool store_page(BTreeNode *node)
+        {
+            uint64_t page_pos = (uint64_t)(node->page_id) * PAGE_SIZE;
+            node->cal_checksum();
+            ssize_t n = pwrite64(data_file, node->raw_page(), PAGE_SIZE, page_pos);
+            if (n == -1)
+                puts(strerror(errno));
 
+            return true;
+        }
+
+        // load page to buffer pool
         char *load(const uint32_t &page_id)
         {
             // need to evict a page
@@ -170,8 +178,6 @@ namespace cyber
 
             return load_page(page_id);
         }
-
-        // choose a buffered page, and evict
         bool evict()
         {
             uint32_t id = 0;
@@ -180,7 +186,7 @@ namespace cyber
                 if (const uint32_t &id = it->second->page_id;
                     pinned_page.find(id) == pinned_page.end())
                 {
-                    if (!store(it->second))
+                    if (!store_page(it->second))
                         return false;
 
                     delete it->second;
@@ -193,17 +199,7 @@ namespace cyber
             return false;
         }
 
-        bool store(BTreeNode *node)
-        {
-            uint64_t page_pos = (uint64_t)(node->page_id) * PAGE_SIZE;
-            node->cal_checksum();
-            ssize_t n = pwrite64(data_file, node->raw_page(), PAGE_SIZE, page_pos);
-            if (n == -1)
-                puts(strerror(errno));
-
-            return true;
-        }
-
+        // data members
         int data_file;
         std::filesystem::path dir;
         uint64_t buffer_size;

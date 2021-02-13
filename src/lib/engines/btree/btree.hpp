@@ -1,24 +1,10 @@
 #pragma once
 
-#include <cstdint>
-#include <string>
-#include <cstring>
-#include <vector>
-#include <filesystem>
-#include <iostream>
-#include <cstring>
-#include <unordered_map>
 #include <list>
-#include <cassert>
 #include <algorithm>
-#include <memory>
-#include <cstdio>
 #include <tuple>
-#include <unistd.h>
-#include <fcntl.h>
 
 #include "engines/kv_engine.hpp"
-#include "context.hpp"
 
 #include "page.hpp"
 #include "buffer_manager.hpp"
@@ -28,9 +14,6 @@ namespace cyber
     class BTree : public KvEngine
     {
     public:
-        virtual ~BTree()
-        {
-        }
 
         virtual OpStatus open(const char *path)
         {
@@ -53,7 +36,7 @@ namespace cyber
             {
                 return OpStatus(OpError::KeyNotFound);
             }
-            return OpStatus(OpError::Ok, kvcell.build_value_string());
+            return OpStatus(OpError::Ok, kvcell.value_string());
         };
 
         virtual OpStatus set(const std::string &key, std::string value)
@@ -92,17 +75,19 @@ namespace cyber
             return OpStatus(OpError::Ok);
         };
 
-        virtual OpStatus scan(const std::string &start_key, const std::string &end_key){
-
+        virtual OpStatus scan(const std::string &start_key, const std::string &end_key)
+        {
+            return OpStatus(OpError::Internal);
         };
 
     private:
+        // BTree operations
         // return the highest effected node id
         uint32_t split(BTreeNode *node, std::unordered_map<uint32_t, uint32_t> &parent_map)
         {
             buffer_manager.pin(node->page_id);
 
-            uint32_t sibling_id = buffer_manager.allocate_page(node->cell_type());
+            uint32_t sibling_id = buffer_manager.allocate_page(node->type());
             int32_t parent_id = -1;
             if (auto it = parent_map.find(node->page_id); it != parent_map.end())
                 parent_id = it->second;
@@ -113,19 +98,19 @@ namespace cyber
             std::string key;
             for (int i = n / 2 + 1; i < n; i++)
             {
-                if (node->cell_type() == CellType::KeyCell)
+                if (node->type() == CellType::KeyCell)
                 {
                     KeyCell kcell(node->key_cell(i));
-                    sibling->insert_child(kcell.build_key_string(), kcell.child());
+                    sibling->insert_child(kcell.key_string(), kcell.child());
                     if (i == n / 2 + 1)
-                        key = kcell.build_key_string();
+                        key = kcell.key_string();
                 }
                 else
                 {
                     KeyValueCell kvcell(node->key_value_cell(i));
-                    sibling->insert_value(kvcell.build_key_string(), kvcell.build_value_string());
+                    sibling->insert_value(kvcell.key_string(), kvcell.value_string());
                     if (i == n / 2 + 1)
-                        key = kvcell.build_key_string();
+                        key = kvcell.key_string();
                 }
                 node->remove(i);
             }
@@ -145,21 +130,18 @@ namespace cyber
             buffer_manager.unpin(parent_id);
             return parent_id;
         }
-
-        // bool is_root(BTreeNode *node) const { return buffer_manager.ask_parent(node->page_id) == -1; }
-
+        // utils
         std::tuple<BTreeNode *, std::unordered_map<uint32_t, uint32_t>> go_to_leaf(const std::string &key)
         {
             BTreeNode *node = buffer_manager.get_root();
             return go_to_leaf(node, key);
         }
-
         std::tuple<BTreeNode *, std::unordered_map<uint32_t, uint32_t>> go_to_leaf(BTreeNode *node, const std::string &key)
         {
             std::unordered_map<uint32_t, uint32_t> parent_map;
 
             // node is not a leaf
-            while (node->cell_type() == CellType::KeyCell)
+            while (node->type() == CellType::KeyCell)
             {
                 int32_t child = node->find_child(key);
                 parent_map[child] = node->page_id;
