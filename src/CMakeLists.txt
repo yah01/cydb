@@ -8,11 +8,11 @@ target_link_libraries(cyengine ${ROCKSDB_LIB})
 target_sources(
     cyengine
     PRIVATE
-        ${CMAKE_CURRENT_LIST_DIR}/engines
+        ${CMAKE_CURRENT_LIST_DIR}/lib
     )
 include_directories(${CMAKE_CURRENT_LIST_DIR})
 target_include_directories(
     cyengine
     PUBLIC
-        ${CMAKE_CURRENT_LIST_DIR}/engines
+        ${CMAKE_CURRENT_LIST_DIR}/lib
 )

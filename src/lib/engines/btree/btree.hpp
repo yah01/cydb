@@ -67,7 +67,7 @@ namespace cyber
             // there is still enough space
             size_t index = node->find_value_index(key);
             if (index < node->data_num() && node->key_value_cell(index).compare_by_key(key) == 0) // exist, update value
-                node->update_value(index,value);
+                node->update_value(index, value);
             else
             {
                 if (node->insert_value(key, value) == 0)
@@ -132,7 +132,7 @@ namespace cyber
                 parent_id = buffer_manager.allocate_page(CellType::KeyCell);
             buffer_manager.pin(parent_id);
             BTreeNode *parent = buffer_manager.get(parent_id);
-            parent->update_child(parent->find_child_index(key),sibling_id);
+            parent->update_child(parent->find_child_index(key), sibling_id);
             buffer_manager.unpin(sibling_id);
             buffer_manager.unpin(node->page_id);
 
