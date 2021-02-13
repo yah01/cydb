@@ -15,10 +15,20 @@
 
 namespace cyber
 {
+    struct Metadata
+    {
+        uint32_t root_id;
+        uint32_t node_num;
+        uint64_t data_num;
+    };
+
+    constexpr size_t METADATA_SIZE = sizeof(Metadata);
+
     class BufferManager
     {
     public:
-        uint32_t page_num = 0;
+        Metadata metadata;
+
         // todo: modify the default buffer size
         BufferManager(uint64_t size = PAGE_SIZE) : buffer_size(size) {}
 
@@ -29,6 +39,16 @@ namespace cyber
                 store(pair.second);
             }
             close(data_file);
+
+            std::filesystem::path metadata_path = dir / "metadata";
+            int metadata_file = open64(metadata_path.c_str(), O_CREAT | O_WRONLY | O_SYNC, S_IRUSR | S_IWUSR);
+            if (metadata_file == -1)
+                exit(-1);
+            if (pwrite64(metadata_file, &metadata, METADATA_SIZE, 0) == -1)
+            {
+                exit(-1);
+            }
+            close(metadata_file);
         }
 
         static uint64_t file_size(int fd)
@@ -45,8 +65,9 @@ namespace cyber
                 std::filesystem::create_directory(path);
             dir = std::filesystem::path(path);
 
-            std::filesystem::path data_file_path;
-            data_file_path = std::filesystem::path(dir).append("data");
+            std::filesystem::path data_file_path, metadata_path;
+            data_file_path = dir / "data";
+            metadata_path = dir / "metadata";
 
             data_file = open64(data_file_path.c_str(), O_CREAT | O_RDWR | O_SYNC, S_IRUSR | S_IWUSR);
             if (data_file == -1)
@@ -59,6 +80,15 @@ namespace cyber
             {
                 allocate_page(CellType::KeyValueCell);
             }
+
+            int metadata_file = open64(metadata_path.c_str(), O_CREAT | O_RDONLY | O_SYNC, S_IRUSR | S_IWUSR);
+            if (metadata_file == -1)
+                exit(-1);
+            if (pread64(metadata_file, &metadata, METADATA_SIZE, 0) == -1)
+            {
+                exit(-1);
+            }
+            close(metadata_file);
 
             return OpStatus(OpError::Ok);
         }
@@ -85,6 +115,11 @@ namespace cyber
             return res;
         }
 
+        BTreeNode *get_root()
+        {
+            return get(metadata.root_id);
+        }
+
         inline void pin(const uint32_t &page_id) { pinned_page.insert(page_id); }
         inline void unpin(const uint32_t &page_id) { pinned_page.erase(page_id); }
 
@@ -97,17 +132,14 @@ namespace cyber
             header.rightmost_child = -1;
             header.checksum = header.header_checksum();
 
-            ssize_t n = pwrite64(data_file, &header, PAGE_HEADER_SIZE, page_num * PAGE_SIZE);
+            ssize_t n = pwrite64(data_file, &header, PAGE_HEADER_SIZE, metadata.node_num * PAGE_SIZE);
             if (n == -1)
                 puts(strerror(errno));
 
-            this->parent.push_back(parent);
-            page_num++;
+            metadata.node_num++;
 
-            return page_num - 1;
+            return metadata.node_num - 1;
         }
-
-        const int32_t &ask_parent(uint32_t node_id) const { return parent[node_id]; }
 
     private:
         char *load_page(const uint32_t &page_id)
@@ -178,6 +210,5 @@ namespace cyber
         uint64_t current_size;
         std::unordered_map<uint32_t, BTreeNode *> buffer_map;
         std::unordered_set<uint32_t> pinned_page;
-        std::vector<int> parent;
     };
 } // namespace cyber

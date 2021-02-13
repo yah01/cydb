@@ -17,6 +17,8 @@ target_include_directories(
         ${CMAKE_CURRENT_LIST_DIR}/lib
 )
 
+include_directories(lib)
+
 # the server execution
 add_executable(cydb_server bin/main.cpp)
 target_link_libraries(cydb_server cydb_lib)
