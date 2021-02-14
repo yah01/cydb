@@ -6,6 +6,7 @@
 namespace
 {
     using namespace cyber;
+    using namespace testing::internal;
 
     class BTreeTest : public ::testing::Test
     {
@@ -37,6 +38,9 @@ namespace
             // splitted
             if (engine->metadata().node_num > 1)
             {
+                ASSERT_EQ(engine->metadata().data_num, i + 1) << "metadata.data_num = " << engine->metadata().data_num;
+                ASSERT_EQ(engine->metadata().node_num, 3) << "metadata.data_num = " << engine->metadata().node_num;
+                ASSERT_EQ(engine->metadata().root_id, 2) << "metadata.data_num = " << engine->metadata().root_id;
                 // read
                 for (int j = 0; j <= i; j++)
                 {
@@ -51,6 +55,7 @@ namespace
                     s = engine->remove(std::to_string(j));
                     ASSERT_EQ(s.err, OpError::Ok) << "failed at " << j;
                 }
+                ASSERT_EQ(engine->metadata().data_num, 0) << "metadata.data_num = " << engine->metadata().data_num;
 
                 // read after remove all data
                 for (int j = 0; j <= i; j++)
@@ -66,6 +71,9 @@ namespace
 
     TEST_F(BTreeTest, get_set)
     {
+        ASSERT_EQ(engine->metadata().node_num, 3) << "metadata.data_num = " << engine->metadata().node_num;
+        ASSERT_EQ(engine->metadata().root_id, 2) << "metadata.data_num = " << engine->metadata().root_id;
+        
         auto s = engine->get("hello");
         EXPECT_EQ(s.err, OpError::KeyNotFound);
 

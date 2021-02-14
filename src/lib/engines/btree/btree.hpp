@@ -112,9 +112,10 @@ namespace cyber
                 if (node->type() == CellType::KeyCell)
                 {
                     KeyCell kcell(node->key_cell(index));
-                    sibling->insert_child(kcell.key_string(), kcell.child());
                     if (i == index)
                         key = kcell.key_string();
+                    else
+                        sibling->insert_child(kcell.key_string(), kcell.child());
                 }
                 else
                 {
