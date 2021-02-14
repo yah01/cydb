@@ -5,7 +5,6 @@ All structs are POD types.
 Should always use them by row pointer, except you try to create a new region.
 */
 
-// #include <cstdint>
 #include <string>
 #include <cstring>
 
@@ -41,7 +40,6 @@ namespace cyber
     {
         uint64_t checksum;
         CellType type;
-
         uint16_t data_num;
         uint32_t cell_end; // cells grow left, cell_end is the offset of the last cell.
         int32_t rightmost_child;
@@ -60,6 +58,7 @@ namespace cyber
     constexpr uint64_t KEY_CELL_HEADER_SIZE = sizeof(KeyCellHeader),
                        KEY_VALUE_CELL_HEADER_SIZE = sizeof(KeyValueCellHeader),
                        PAGE_HEADER_SIZE = sizeof(PageHeader); // Must be multiple of 8
+    static_assert(PAGE_HEADER_SIZE % 8 == 0, "PAGE_HEADER_SIZE can't be divided by 8");
 
     class Cell
     {
@@ -109,12 +108,9 @@ namespace cyber
         size_t key_size() const override { return header->key_size; }
         size_t size() const override { return KEY_CELL_HEADER_SIZE + header->key_size; }
         std::string key_string() override { return std::string(key, header->key_size); }
-        void write_key(const char *key, const size_t n) override
-        {
-            header->key_size = n;
-            memcpy(this->key, key, n);
-        }
-        void write_key(const std::string &key) override { Cell::write_key(key); }
+        void write_key(const char *key, const size_t n) override { memcpy(this->key, key, header->key_size = n); }
+        using Cell::write_key;
+        // void write_key(const std::string &key) override { Cell::write_key(key); }
 
         int32_t child() const { return header->child_id; }
         void write_child(const int32_t child_id) { header->child_id = child_id; }
@@ -148,7 +144,8 @@ namespace cyber
             header->key_size = n;
             memcpy(this->key, key, n);
         }
-        void write_key(const std::string &key) override { Cell::write_key(key); }
+        // void write_key(const std::string &key) override { Cell::write_key(key); }
+        using Cell::write_key;
 
         inline uint32_t value_size() const { return header->value_size; }
         std::string value_string() const { return std::string(value, header->value_size); }
