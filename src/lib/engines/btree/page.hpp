@@ -266,7 +266,6 @@ namespace cyber
             return cell_offset;
         }
 
-
         // KeyValueCell methods
 
         // equal to lower_bound
@@ -321,7 +320,7 @@ namespace cyber
             pointers[header->data_num] = cell_offset;
             header->data_num++;
 
-            // todo optimization: use binary search to find the final index, avoid to compare keys too many times
+            // TODO: optimization: use binary search to find the final index, avoid to compare keys too many times
             KeyValueCell kvcell(page + cell_offset);
             for (int i = header->data_num - 1; i > index; i--)
                 std::swap(pointers[i - 1], pointers[i]);

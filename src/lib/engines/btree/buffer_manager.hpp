@@ -35,7 +35,7 @@ namespace cyber
     public:
         Metadata metadata;
 
-        // todo: modify the default buffer size
+        // TODO: modify the default buffer size
         BufferManager(uint64_t size = PAGE_SIZE) : buffer_size(size) {}
 
         ~BufferManager()
@@ -167,7 +167,7 @@ namespace cyber
             ssize_t n = pwrite64(data_file, node->raw_page(), PAGE_SIZE, page_pos);
             if (n == -1)
                 puts(strerror(errno));
-            
+
             delete node;
             return true;
         }
@@ -180,7 +180,7 @@ namespace cyber
             {
                 if (!evict()) // failed to evict
                 {
-                    // todo: now, do nothing
+                    // TODO: now, do nothing
                     // return nullptr;
                 }
             }

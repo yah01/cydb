@@ -27,31 +27,6 @@ namespace
         BTree *engine;
     };
 
-    TEST_F(BTreeTest, get_set)
-    {
-        auto s = engine->get("hello");
-        EXPECT_EQ(s.err, OpError::KeyNotFound);
-
-        engine->set("hello", "world");
-        s = engine->get("hello");
-        EXPECT_EQ(s.err, OpError::Ok);
-        EXPECT_STREQ(s.value.c_str(), "world");
-
-        s = engine->set("cyber", "yah2er0ne");
-        EXPECT_EQ(s.err, OpError::Ok);
-    }
-
-    TEST_F(BTreeTest, reopen)
-    {
-        auto s = engine->get("hello");
-        EXPECT_EQ(s.err, OpError::Ok);
-        EXPECT_STREQ(s.value.c_str(), "world");
-
-        s = engine->get("cyber");
-        EXPECT_EQ(s.err, OpError::Ok);
-        EXPECT_STREQ(s.value.c_str(), "yah2er0ne");
-    }
-
     TEST_F(BTreeTest, split)
     {
         for (int i = 0; true; i++)
@@ -87,6 +62,31 @@ namespace
                 break;
             }
         }
+    }
+
+    TEST_F(BTreeTest, get_set)
+    {
+        auto s = engine->get("hello");
+        EXPECT_EQ(s.err, OpError::KeyNotFound);
+
+        engine->set("hello", "world");
+        s = engine->get("hello");
+        EXPECT_EQ(s.err, OpError::Ok);
+        EXPECT_STREQ(s.value.c_str(), "world");
+
+        s = engine->set("cyber", "yah2er0ne");
+        EXPECT_EQ(s.err, OpError::Ok);
+    }
+
+    TEST_F(BTreeTest, reopen)
+    {
+        auto s = engine->get("hello");
+        EXPECT_EQ(s.err, OpError::Ok);
+        EXPECT_STREQ(s.value.c_str(), "world");
+
+        s = engine->get("cyber");
+        EXPECT_EQ(s.err, OpError::Ok);
+        EXPECT_STREQ(s.value.c_str(), "yah2er0ne");
     }
 
     TEST_F(BTreeTest, remove)
