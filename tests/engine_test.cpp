@@ -66,22 +66,22 @@ namespace
                 for (int j = 0; j <= i; j++)
                 {
                     s = engine->get(std::to_string(j));
-                    ASSERT_EQ(s.err, OpError::Ok) << "j=" << j;
-                    ASSERT_EQ(s.value, std::to_string(j)) << "j=" << j;
+                    ASSERT_EQ(s.err, OpError::Ok) << "failed at " << j;
+                    ASSERT_EQ(s.value, std::to_string(j)) << "failed at " << j;
                 }
 
                 // remove
                 for (int j = 0; j <= i; j++)
                 {
                     s = engine->remove(std::to_string(j));
-                    ASSERT_EQ(s.err, OpError::Ok);
+                    ASSERT_EQ(s.err, OpError::Ok) << "failed at " << j;
                 }
 
                 // read after remove all data
                 for (int j = 0; j <= i; j++)
                 {
                     s = engine->get(std::to_string(j));
-                    ASSERT_EQ(s.err, OpError::KeyNotFound);
+                    ASSERT_EQ(s.err, OpError::KeyNotFound) << "failed at " << j;
                 }
 
                 break;
