@@ -1,5 +1,6 @@
 #pragma once
 
+#include <iostream>
 #include <unordered_set>
 #include <unordered_map>
 #include <filesystem>
@@ -140,7 +141,16 @@ namespace cyber
         // read page from disk
         char *load_page(const uint32_t &page_id)
         {
-            char *page = new char[PAGE_SIZE];
+            char *page;
+            try
+            {
+                page = new char[PAGE_SIZE];
+            }
+            catch (const std::exception &e)
+            {
+                std::cerr << e.what() << '\n';
+                exit(-1);
+            }
 
             uint64_t page_pos = (uint64_t)page_id * PAGE_SIZE;
             ssize_t n = pread64(data_file, page, PAGE_SIZE, page_pos);
@@ -157,7 +167,8 @@ namespace cyber
             ssize_t n = pwrite64(data_file, node->raw_page(), PAGE_SIZE, page_pos);
             if (n == -1)
                 puts(strerror(errno));
-
+            
+            delete node;
             return true;
         }
 
@@ -189,7 +200,6 @@ namespace cyber
                     if (!store_page(it->second))
                         return false;
 
-                    delete it->second;
                     current_size -= PAGE_SIZE;
                     buffer_map.erase(it);
                     return true;

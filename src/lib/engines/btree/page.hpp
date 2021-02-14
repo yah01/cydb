@@ -10,7 +10,7 @@ Should always use them by row pointer, except you try to create a new region.
 
 namespace cyber
 {
-    constexpr uint64_t PAGE_SIZE = 16 << 10; // 16KiB
+    constexpr uint64_t PAGE_SIZE = 4 << 10; // 16KiB
 
     enum struct CellType : uint8_t
     {
@@ -177,12 +177,14 @@ namespace cyber
             init_check();
             init_available_list();
         }
+        ~BTreeNode() { delete[] page; }
 
         inline const char *raw_page() { return this->page; }
 
         // header methods
         inline CellType type() const { return header->type; }
         inline size_t data_num() const { return header->data_num; }
+        inline int32_t &rightmost_child() { return header->rightmost_child; }
         // re-calculate the checksum
         // if you try to check, save the header->checksum first
         uint64_t cal_checksum()
@@ -211,7 +213,7 @@ namespace cyber
         size_t find_child_index(const std::string &key)
         {
             return std::upper_bound(pointers, pointers + header->data_num, key, [&](const std::string &key, const uint32_t &offset) {
-                       return KeyCell(page + offset).compare_by_key(key) < 0;
+                       return KeyCell(page + offset).compare_by_key(key) > 0;
                    }) -
                    pointers;
         }
@@ -236,7 +238,7 @@ namespace cyber
         uint32_t insert_child(const std::string &key, const int32_t child)
         {
             size_t index = find_child_index(key);
-            if (index >= header->data_num)
+            if (index >= header->data_num && header->data_num > 0)
             {
                 if (header->rightmost_child == -1)
                 {
@@ -263,6 +265,7 @@ namespace cyber
 
             return cell_offset;
         }
+
 
         // KeyValueCell methods
 
@@ -401,6 +404,8 @@ namespace cyber
                     it->len += prev->len;
                     it = available_list.erase(prev);
                 }
+                else
+                    break;
             }
         }
 

@@ -14,7 +14,6 @@ namespace cyber
     class BTree : public KvEngine
     {
     public:
-
         virtual OpStatus open(const char *path)
         {
             return buffer_manager.open(path);
@@ -44,15 +43,22 @@ namespace cyber
             auto [node, parent_map] = go_to_leaf(key);
             // there is still enough space
             size_t index = node->find_value_index(key);
-            if (index < node->data_num() && node->key_value_cell(index).compare_by_key(key) == 0) // exist, update value
+            if (index < node->data_num() && node->key_value_cell(index).compare_by_key(key) == 0)
             {
-                node->update_value(index, value); // todo: handle split
+                // new value length is greater than the old value's
+                // and the node has no enough free space
+                while (node->update_value(index, value) == WriteError::Failed)
+                {
+                    uint32_t node_id = split(node, parent_map);
+                    std::tie(node, parent_map) = go_to_leaf(buffer_manager.get(node_id), key);
+                }
             }
             else
             {
-                if (node->insert_value(key, value) == 0)
+                while (node->insert_value(key, value) == WriteError::Failed)
                 {
-                    split(node, parent_map);
+                    uint32_t node_id = split(node, parent_map);
+                    std::tie(node, parent_map) = go_to_leaf(buffer_manager.get(node_id), key);
                 }
                 buffer_manager.metadata.data_num++;
             }
@@ -80,6 +86,8 @@ namespace cyber
             return OpStatus(OpError::Internal);
         };
 
+        Metadata &metadata() { return buffer_manager.metadata; }
+
     private:
         // BTree operations
         // return the highest effected node id
@@ -87,45 +95,65 @@ namespace cyber
         {
             buffer_manager.pin(node->page_id);
 
+            uint32_t node_id = node->page_id;
             uint32_t sibling_id = buffer_manager.allocate_page(node->type());
             int32_t parent_id = -1;
-            if (auto it = parent_map.find(node->page_id); it != parent_map.end())
+            if (auto it = parent_map.find(node_id); it != parent_map.end())
                 parent_id = it->second;
 
             buffer_manager.pin(sibling_id);
             BTreeNode *sibling = buffer_manager.get(sibling_id);
+
             size_t n = node->data_num();
             std::string key;
-            for (int i = n / 2 + 1; i < n; i++)
+            uint32_t index = n / 2 + 1;
+            for (int i = index; i < n; i++)
             {
                 if (node->type() == CellType::KeyCell)
                 {
-                    KeyCell kcell(node->key_cell(i));
+                    KeyCell kcell(node->key_cell(index));
                     sibling->insert_child(kcell.key_string(), kcell.child());
-                    if (i == n / 2 + 1)
+                    if (i == index)
                         key = kcell.key_string();
                 }
                 else
                 {
-                    KeyValueCell kvcell(node->key_value_cell(i));
+                    KeyValueCell kvcell(node->key_value_cell(index));
                     sibling->insert_value(kvcell.key_string(), kvcell.value_string());
-                    if (i == n / 2 + 1)
+                    if (i == index)
                         key = kvcell.key_string();
                 }
-                node->remove(i);
+                node->remove(index);
             }
 
-            if (parent_id == -1)
+            // current node is the root
+            bool is_root = parent_id == -1;
+            if (is_root)
+            {
                 parent_id = buffer_manager.allocate_page(CellType::KeyCell);
+                buffer_manager.metadata.root_id = parent_id;
+            }
             buffer_manager.pin(parent_id);
             BTreeNode *parent = buffer_manager.get(parent_id);
-            parent->update_child(parent->find_child_index(key), sibling_id);
-            buffer_manager.unpin(sibling_id);
-            buffer_manager.unpin(node->page_id);
-
-            if (parent->insert_child(key, node->page_id) == WriteError::Failed)
+            if (is_root)
+                parent->rightmost_child() = sibling_id;
+            else
             {
-                return split(parent, parent_map);
+                if (node_id == parent->rightmost_child())
+                    parent->rightmost_child() = sibling_id;
+                else
+                    parent->update_child(parent->find_child_index(key), sibling_id);
+            }
+
+            buffer_manager.unpin(node_id);
+            buffer_manager.unpin(sibling_id);
+
+            if (parent->insert_child(key, node_id) == WriteError::Failed)
+            {
+                uint32_t anc = split(parent, parent_map);
+                buffer_manager.get(parent_id)->insert_child(key, node_id);
+                parent->insert_child(key, node_id);
+                return anc;
             }
             buffer_manager.unpin(parent_id);
             return parent_id;
@@ -152,7 +180,6 @@ namespace cyber
             return std::make_tuple(node, std::move(parent_map));
         }
 
-        Metadata metadata;
         BufferManager buffer_manager;
     };
 } // namespace cyber
