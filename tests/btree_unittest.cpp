@@ -14,7 +14,7 @@ namespace
         void SetUp() override
         {
             engine = new BTree();
-            auto s = engine->open("testdb");
+            auto s = engine->open("test_db");
             ASSERT_EQ(s.err, OpError::Ok) << "can't open file";
         }
         void TearDown() override
@@ -22,8 +22,8 @@ namespace
             delete engine;
         }
 
-        static void SetUpTestSuite() { std::filesystem::remove_all("testdb"); }
-        static void TearDownTestSuite() { std::filesystem::remove_all("testdb"); }
+        static void SetUpTestSuite() { std::filesystem::remove_all("test_db"); }
+        static void TearDownTestSuite() { std::filesystem::remove_all("test_db"); }
 
         BTree *engine;
     };
@@ -73,7 +73,7 @@ namespace
     {
         ASSERT_EQ(engine->metadata().node_num, 3) << "metadata.data_num = " << engine->metadata().node_num;
         ASSERT_EQ(engine->metadata().root_id, 2) << "metadata.data_num = " << engine->metadata().root_id;
-        
+
         auto s = engine->get("hello");
         EXPECT_EQ(s.err, OpError::KeyNotFound);
 

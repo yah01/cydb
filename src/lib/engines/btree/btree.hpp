@@ -31,7 +31,7 @@ namespace cyber
             }
 
             KeyValueCell kvcell(node->key_value_cell(index));
-            if (kvcell.compare_by_key(key) != 0) // key not found
+            if (kvcell != key) // key not found
             {
                 return OpStatus(OpError::KeyNotFound);
             }
@@ -43,7 +43,7 @@ namespace cyber
             auto [node, parent_map] = go_to_leaf(key);
             // there is still enough space
             size_t index = node->find_value_index(key);
-            if (index < node->data_num() && node->key_value_cell(index).compare_by_key(key) == 0)
+            if (index < node->data_num() && node->key_value_cell(index) == key)
             {
                 // new value length is greater than the old value's
                 // and the node has no enough free space
@@ -72,7 +72,7 @@ namespace cyber
             std::tie(node, std::ignore) = go_to_leaf(key);
 
             size_t index = node->find_value_index(key);
-            if (index < node->data_num() && node->key_value_cell(index).compare_by_key(key) == 0)
+            if (index < node->data_num() && key == node->key_value_cell(index))
                 node->remove(index);
             else
                 return OpStatus(OpError::KeyNotFound);

@@ -73,25 +73,23 @@ namespace cyber
         virtual std::string key_string() = 0;
         virtual void write_key(const char *key, const size_t n) = 0;
         virtual void write_key(const std::string &key) { write_key(key.c_str(), key.length()); }
-
-        // -1 -> less
-        // 0  -> equal
-        // 1  -> greater
-        virtual int compare_by_key(const std::string &key) const
+        friend auto operator<=>(const Cell &lhs, const std::string &rhs)
         {
-            for (int i = 0; i < key_size() && i < key.length(); i++)
+            for (int i = 0; i < lhs.key_size() && i < rhs.length(); i++)
             {
-                if (this->key[i] < key[i])
-                    return -1;
-                else if (this->key[i] > key[i])
-                    return 1;
+                if (lhs.key[i] < rhs[i])
+                    return std::partial_ordering::less;
+                else if (lhs.key[i] > rhs[i])
+                    return std::partial_ordering::greater;
             }
 
-            if (key_size() == key.length())
-                return 0;
+            if (lhs.key_size() == rhs.length())
+                return std::partial_ordering::equivalent;
 
-            return (key_size() < key.length()) ? -1 : 1;
+            return lhs.key_size() < rhs.length() ? std::partial_ordering::less
+                                                 : std::partial_ordering::greater;
         }
+        friend auto operator==(const Cell &lhs, const std::string &rhs) { return lhs <=> rhs == 0; }
     };
     class KeyCell : public Cell
     {
@@ -213,7 +211,7 @@ namespace cyber
         size_t find_child_index(const std::string &key)
         {
             return std::upper_bound(pointers, pointers + header->data_num, key, [&](const std::string &key, const uint32_t &offset) {
-                       return KeyCell(page + offset).compare_by_key(key) > 0;
+                       return KeyCell(page + offset) > key;
                    }) -
                    pointers;
         }
@@ -273,7 +271,7 @@ namespace cyber
         size_t find_value_index(const std::string &key)
         {
             return std::lower_bound(pointers, pointers + header->data_num, key, [&](const uint32_t &offset, const std::string &key) {
-                       return KeyValueCell(page + offset).compare_by_key(key) < 0;
+                       return KeyValueCell(page + offset) < key;
                    }) -
                    pointers;
         }
