@@ -191,8 +191,7 @@ namespace cyber
         }
         bool evict()
         {
-            page_id_t id = 0;
-            for (auto it = buffer_map.begin(); it != buffer_map.end(); it++)
+            for (auto it : iota(buffer_map.begin(), buffer_map.end()))
             {
                 if (const page_id_t &id = it->second->page_id;
                     pinned_page.find(id) == pinned_page.end())

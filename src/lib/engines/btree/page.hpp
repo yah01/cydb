@@ -7,15 +7,21 @@ Should always use them by row pointer, except you try to create a new region.
 
 #include <string>
 #include <cstring>
+#include <ranges>
+#include <cmath>
 
 namespace cyber
 {
+    namespace ranges = std::ranges;
+    namespace views = std::views;
+    using views::iota;
+
     constexpr size_t PAGE_SIZE = 4 << 10; // 16KiB
 
     using page_id_t = uint32_t;
     using len_t = uint32_t;
     using checksum_t = uint64_t;
-    using num_t = uint16_t;
+    using num_t = uint32_t;
     using offset_t = uint32_t;
 
     static_assert(std::numeric_limits<num_t>::max() >= PAGE_SIZE);
@@ -58,8 +64,9 @@ namespace cyber
             checksum_t *header = (checksum_t *)this;
             checksum_t checksum = 0;
             int n = sizeof(PageHeader) / 8;
-            for (int i = 1; i < n; i++)
+            for (auto i : iota(1, n))
                 checksum ^= header[i];
+
             return checksum;
         }
     };
@@ -80,11 +87,12 @@ namespace cyber
         virtual len_t key_len() const = 0;
         virtual size_t size() const = 0;
         virtual std::string key_string() = 0;
-        virtual void write_key(const char *key, const size_t n) = 0;
+        virtual void write_key(const char *key, const len_t n) = 0;
         virtual void write_key(const std::string &key) { write_key(key.c_str(), key.length()); }
         friend auto operator<=>(const Cell &lhs, const std::string &rhs)
         {
-            for (int i = 0; i < lhs.key_len() && i < rhs.length(); i++)
+            for (auto i : iota(0ul, lhs.key_len() < rhs.length() ? lhs.key_len()
+                                                                 : rhs.length()))
             {
                 if (lhs.key[i] < rhs[i])
                     return std::partial_ordering::less;
@@ -115,7 +123,7 @@ namespace cyber
         len_t key_len() const override { return header->key_size; }
         size_t size() const override { return KEY_CELL_HEADER_SIZE + header->key_size; }
         std::string key_string() override { return std::string(key, header->key_size); }
-        void write_key(const char *key, const size_t n) override { memcpy(this->key, key, header->key_size = n); }
+        void write_key(const char *key, const len_t n) override { memcpy(this->key, key, header->key_size = n); }
         using Cell::write_key;
         // void write_key(const std::string &key) override { Cell::write_key(key); }
 
@@ -146,21 +154,13 @@ namespace cyber
         len_t key_len() const override { return header->key_size; }
         size_t size() const override { return KEY_CELL_HEADER_SIZE + header->key_size + header->value_size; }
         std::string key_string() override { return std::string(key, header->key_size); }
-        void write_key(const char *key, const size_t n) override
-        {
-            header->key_size = n;
-            memcpy(this->key, key, n);
-        }
+        void write_key(const char *key, const len_t n) override { memcpy(this->key, key, header->key_size = n); }
         // void write_key(const std::string &key) override { Cell::write_key(key); }
         using Cell::write_key;
 
         inline len_t value_len() const { return header->value_size; }
         std::string value_string() const { return std::string(value, header->value_size); }
-        inline void write_value(const char *value, const size_t n)
-        {
-            header->value_size = n;
-            memcpy(this->value, value, n);
-        }
+        inline void write_value(const char *value, const len_t n) { memcpy(this->value, value, header->value_size = n); }
         inline void write_value(const std::string &value) { write_value(value.c_str(), value.length()); }
     };
 
@@ -191,9 +191,9 @@ namespace cyber
         checksum_t cal_checksum()
         {
             header->checksum = header->header_checksum();
-            int n = PAGE_SIZE / sizeof(header->checksum);
+            auto n = PAGE_SIZE / sizeof(header->checksum);
             checksum_t *data = (checksum_t *)page;
-            for (int i = PAGE_HEADER_SIZE / sizeof(header->checksum); i < n; i++)
+            for (auto i : iota(PAGE_HEADER_SIZE / sizeof(checksum_t), n))
                 header->checksum ^= data[i];
 
             return header->checksum;
@@ -201,9 +201,9 @@ namespace cyber
         inline size_t free_space() const { return header->cell_end - PAGE_HEADER_SIZE - header->data_num * sizeof(uint32_t); }
 
         // cell methods
-        inline KeyCell key_cell(uint32_t i) { return KeyCell(raw_cell(i)); }
-        inline KeyValueCell key_value_cell(uint32_t i) { return KeyValueCell(raw_cell(i)); }
-        void remove(uint32_t index)
+        inline KeyCell key_cell(size_t i) { return KeyCell(raw_cell(i)); }
+        inline KeyValueCell key_value_cell(size_t i) { return KeyValueCell(raw_cell(i)); }
+        void remove(size_t index)
         {
             remove_cell(index);
             std::memmove(pointers + index, pointers + index + 1, (header->data_num - index - 1) * sizeof(uint32_t));
@@ -253,7 +253,7 @@ namespace cyber
             header->data_num++;
 
             KeyCell kcell(page + cell_offset);
-            for (int i = header->data_num - 1; i > index; i--)
+            for (auto i : views::iota(index + 1, header->data_num) | views::reverse)
                 std::swap(pointers[i - 1], pointers[i]);
 
             return cell_offset;
@@ -314,7 +314,8 @@ namespace cyber
             header->data_num++;
 
             KeyValueCell kvcell(page + cell_offset);
-            for (int i = header->data_num - 1; i > index; i--)
+
+            for (auto i : views::iota(index + 1, header->data_num) | views::reverse)
                 std::swap(pointers[i - 1], pointers[i]);
 
             return cell_offset;
@@ -343,15 +344,14 @@ namespace cyber
         }
         void init_available_list()
         {
-            offset_t tmp_pointers[header->data_num];
-            memcpy(tmp_pointers, pointers, sizeof(tmp_pointers));
-            std::sort(tmp_pointers, tmp_pointers + header->data_num);
-            std::reverse(tmp_pointers, tmp_pointers + header->data_num);
+            std::vector<offset_t> tmp_pointers(pointers, pointers + header->data_num);
+            ranges::sort(tmp_pointers, ranges::greater());
 
             offset_t boundary = PAGE_SIZE;
-            for (int i = 0; i < header->data_num; i++)
+            for (auto i : views::iota(0u, header->data_num))
             {
-                offset_t l = tmp_pointers[i], r = tmp_pointers[i];
+                offset_t l = tmp_pointers[i];
+                offset_t r = tmp_pointers[i];
                 if (header->type == CellType::KeyCell)
                     r += KeyCell(page + tmp_pointers[i]).size();
                 else

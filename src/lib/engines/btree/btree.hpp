@@ -104,7 +104,7 @@ namespace cyber
             num_t n = node->data_num();
             std::string key;
             uint32_t index = n / 2 + 1;
-            for (int i = index; i < n; i++)
+            for (auto i : iota(index, n))
             {
                 if (node->type() == CellType::KeyCell)
                 {

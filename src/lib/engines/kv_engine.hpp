@@ -33,4 +33,4 @@ namespace cyber
         virtual OpStatus scan(const std::string &start_key, const std::string &end_key) = 0;
         virtual ~KvEngine(){}
     };
-}; // namespace cyber
+} // namespace cyber
