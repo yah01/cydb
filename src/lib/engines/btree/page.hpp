@@ -360,7 +360,10 @@ namespace cyber
                     r += KeyValueCell(page + tmp_pointers[i]).size();
 
                 if (boundary > r)
+                {
                     available_list.push_back(AvailableEntry(r, boundary - r));
+                    available_space_sum += boundary - r;
+                }
                 boundary = l;
             }
         }
@@ -372,6 +375,7 @@ namespace cyber
                 return entry.offset > in_list_entry.len;
             });
             it = available_list.insert(it, entry);
+            available_space_sum += entry.len;
 
             while (it != available_list.end())
             {
@@ -404,6 +408,17 @@ namespace cyber
 
         // cell methods
         inline char *raw_cell(uint32_t i) { return page + pointers[i]; }
+        inline std::string_view cell_key(uint32_t i)
+        {
+            if (header->type == CellType::KeyCell)
+            {
+                return key_cell(i).key_string();
+            }
+            else
+            {
+                return key_value_cell(i).key_string();
+            }
+        }
         inline size_t cell_size(uint32_t i)
         {
             if (header->type == CellType::KeyCell)
@@ -424,6 +439,7 @@ namespace cyber
             while (!available_list.empty() && available_list.back().offset == header->cell_end)
             {
                 header->cell_end += available_list.back().len;
+                available_space_sum -= available_list.back().len;
                 available_list.pop_back();
             }
         }
@@ -445,6 +461,8 @@ namespace cyber
                     it->offset += kcell_size;
                 else
                     available_list.erase(it);
+
+                available_space_sum -= kcell_size;
             }
             else if (free_space() >= kcell_size + sizeof(offset_t))
             {
@@ -481,6 +499,8 @@ namespace cyber
                     it->offset += kvcell_size;
                 else
                     available_list.erase(it);
+
+                available_space_sum -= kvcell_size;
             }
             else if (free_space() >= kvcell_size + sizeof(offset_t))
             {
@@ -504,5 +524,6 @@ namespace cyber
         PageHeader *header;
         offset_t *pointers; // point to the offset of cells.
         std::list<AvailableEntry> available_list;
+        len_t available_space_sum = 0;
     };
 } // namespace cyber
