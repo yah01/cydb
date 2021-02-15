@@ -164,12 +164,6 @@ namespace cyber
         inline void write_value(const std::string &value) { write_value(value.c_str(), value.length()); }
     };
 
-    enum WriteError : uint32_t
-    {
-        Failed = 0,
-        WriteHeader = 1,
-    };
-
     class BTreeNode
     {
     public:
@@ -231,7 +225,7 @@ namespace cyber
                 return key_cell(index).child();
             return header->rightmost_child;
         }
-        offset_t update_child(size_t index, const page_id_t &child)
+        std::optional<offset_t> update_child(size_t index, const page_id_t &child)
         {
             if (index >= header->data_num)
             {
@@ -242,23 +236,15 @@ namespace cyber
             key_cell(index).write_child(child);
             return pointers[index];
         }
-        offset_t insert_child(const std::string &key, const page_id_t child)
+        std::optional<offset_t> insert_child(const std::string &key, const page_id_t child)
         {
             size_t index = find_child_index(key);
             if (index >= header->data_num && header->data_num > 0)
-            {
-                if (header->rightmost_child == -1)
-                {
-                    header->rightmost_child = child;
-                    return WriteError::WriteHeader;
-                }
-                else
-                    return WriteError::Failed;
-            }
+                return std::nullopt;
 
             offset_t cell_offset = insert_kcell(key, child);
             if (cell_offset == 0)
-                return WriteError::Failed;
+                return std::nullopt;
 
             if (header->cell_end > cell_offset)
                 header->cell_end = cell_offset;
@@ -284,7 +270,7 @@ namespace cyber
                    }) -
                    pointers;
         }
-        offset_t update_value(size_t index, const std::string &value)
+        std::optional<offset_t> update_value(size_t index, const std::string &value)
         {
             KeyValueCell kvcell(key_value_cell(index));
 
@@ -296,12 +282,12 @@ namespace cyber
                     remove_cell(index);
                     offset_t cell_offset = insert_kvcell(kvcell.key_string(), value);
                     if (cell_offset == 0)
-                        return WriteError::Failed;
+                        return std::nullopt;
 
                     return pointers[index] = cell_offset;
                 }
                 else
-                    return WriteError::Failed;
+                    return std::nullopt;
             }
             else
             {
@@ -314,11 +300,11 @@ namespace cyber
         }
         // return value: the offset of the new cell
         // return 0 when there is no enough free space
-        offset_t insert_value(const std::string &key, const std::string &value)
+        std::optional<offset_t> insert_value(const std::string &key, const std::string &value)
         {
             offset_t cell_offset = insert_kvcell(key, value);
             if (cell_offset == 0)
-                return 0;
+                return std::nullopt;
 
             if (header->cell_end > cell_offset)
                 header->cell_end = cell_offset;
@@ -327,7 +313,6 @@ namespace cyber
             pointers[header->data_num] = cell_offset;
             header->data_num++;
 
-            // TODO: optimization: use binary search to find the final index, avoid to compare keys too many times
             KeyValueCell kvcell(page + cell_offset);
             for (int i = header->data_num - 1; i > index; i--)
                 std::swap(pointers[i - 1], pointers[i]);
@@ -442,6 +427,7 @@ namespace cyber
         }
 
         // KeyCell methods
+        // you should grantee there is enough free space
         offset_t insert_kcell(const std::string &key, const page_id_t &child)
         {
             size_t kcell_size = KEY_CELL_HEADER_SIZE + key.length();
@@ -477,6 +463,7 @@ namespace cyber
         // KeyValueCell methods
         // no side effects insert
         // header and pointers will not be modified
+        // you should grantee there is enough free space
         offset_t insert_kvcell(const std::string &key, const std::string &value)
         {
             size_t kvcell_size = KEY_VALUE_CELL_HEADER_SIZE + key.length() + value.length();

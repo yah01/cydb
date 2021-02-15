@@ -47,7 +47,7 @@ namespace cyber
             {
                 // new value length is greater than the old value's
                 // and the node has no enough free space
-                while (node->update_value(index, value) == WriteError::Failed)
+                while (node->update_value(index, value) == std::nullopt)
                 {
                     page_id_t node_id = split(node, parent_map);
                     std::tie(node, parent_map) = go_to_leaf(buffer_manager.get(node_id), key);
@@ -55,7 +55,7 @@ namespace cyber
             }
             else
             {
-                while (node->insert_value(key, value) == WriteError::Failed)
+                while (node->insert_value(key, value) == std::nullopt)
                 {
                     page_id_t node_id = split(node, parent_map);
                     std::tie(node, parent_map) = go_to_leaf(buffer_manager.get(node_id), key);
@@ -129,13 +129,12 @@ namespace cyber
             if (auto it = parent_map.find(node_id); it != parent_map.end())
                 parent_id = it->second;
             else
-                is_root = true;
-            // current node is the root
-            if (is_root)
             {
+                is_root = true;
                 parent_id = buffer_manager.allocate_page(CellType::KeyCell);
                 buffer_manager.metadata.root_id = parent_id;
             }
+
             buffer_manager.pin(parent_id);
             BTreeNode *parent = buffer_manager.get(parent_id);
             if (is_root)
@@ -151,7 +150,7 @@ namespace cyber
             buffer_manager.unpin(node_id);
             buffer_manager.unpin(sibling_id);
 
-            if (parent->insert_child(key, node_id) == WriteError::Failed)
+            if (parent->insert_child(key, node_id) == std::nullopt)
             {
                 uint32_t anc = split(parent, parent_map);
                 buffer_manager.get(parent_id)->insert_child(key, node_id);
