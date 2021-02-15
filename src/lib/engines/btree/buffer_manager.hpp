@@ -13,6 +13,8 @@
 
 namespace cyber
 {
+    namespace fs = std::filesystem;
+
     uint64_t file_size(int fd)
     {
         uint64_t offset = lseek64(fd, 0, SEEK_SET);
@@ -46,7 +48,7 @@ namespace cyber
             }
             close(data_file);
 
-            std::filesystem::path metadata_path = dir / "metadata";
+            fs::path metadata_path = dir / "metadata";
             int metadata_file = open64(metadata_path.c_str(), O_CREAT | O_WRONLY | O_SYNC, S_IRUSR | S_IWUSR);
             if (metadata_file == -1)
                 exit(-1);
@@ -59,11 +61,11 @@ namespace cyber
 
         OpStatus open(const char *path)
         {
-            if (!std::filesystem::exists(path))
-                std::filesystem::create_directory(path);
-            dir = std::filesystem::path(path);
+            if (!fs::exists(path))
+                fs::create_directory(path);
+            dir = fs::path(path);
 
-            std::filesystem::path data_file_path, metadata_path;
+            fs::path data_file_path, metadata_path;
             data_file_path = dir / "data";
             metadata_path = dir / "metadata";
 
@@ -211,7 +213,7 @@ namespace cyber
 
         // data members
         int data_file;
-        std::filesystem::path dir;
+        fs::path dir;
         uint64_t buffer_size;
         uint64_t current_size;
         std::unordered_map<uint32_t, BTreeNode *> buffer_map;

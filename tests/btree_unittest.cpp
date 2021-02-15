@@ -33,7 +33,7 @@ namespace
         for (int i = 0; true; i++)
         {
             auto s = engine->set(std::to_string(i), std::to_string(i));
-            EXPECT_EQ(s.err, OpError::Ok);
+            ASSERT_EQ(s.err, OpError::Ok);
 
             // splitted
             if (engine->metadata().node_num > 1)
@@ -75,38 +75,38 @@ namespace
         ASSERT_EQ(engine->metadata().root_id, 2) << "metadata.data_num = " << engine->metadata().root_id;
 
         auto s = engine->get("hello");
-        EXPECT_EQ(s.err, OpError::KeyNotFound);
+        ASSERT_EQ(s.err, OpError::KeyNotFound);
 
-        engine->set("hello", "world");
+        s = engine->set("hello", "world");
+        ASSERT_EQ(s.err, OpError::Ok);
         s = engine->get("hello");
-        EXPECT_EQ(s.err, OpError::Ok);
-        EXPECT_STREQ(s.value.c_str(), "world");
+        ASSERT_EQ(s.err, OpError::Ok);
+        ASSERT_STREQ(s.value.c_str(), "world") << "s.value = " << s.value;
 
         s = engine->set("cyber", "yah2er0ne");
-        EXPECT_EQ(s.err, OpError::Ok);
-    }
-
-    TEST_F(BTreeTest, reopen)
-    {
-        auto s = engine->get("hello");
-        EXPECT_EQ(s.err, OpError::Ok);
-        EXPECT_STREQ(s.value.c_str(), "world");
-
-        s = engine->get("cyber");
-        EXPECT_EQ(s.err, OpError::Ok);
-        EXPECT_STREQ(s.value.c_str(), "yah2er0ne");
+        ASSERT_EQ(s.err, OpError::Ok);
     }
 
     TEST_F(BTreeTest, remove)
     {
         auto s = engine->remove("hello");
-        EXPECT_EQ(s.err, OpError::Ok);
+        ASSERT_EQ(s.err, OpError::Ok);
 
         s = engine->get("hello");
-        EXPECT_EQ(s.err, OpError::KeyNotFound);
+        ASSERT_EQ(s.err, OpError::KeyNotFound);
 
         s = engine->get("cyber");
-        EXPECT_EQ(s.err, OpError::Ok) << "get(cyber) wrong";
-        EXPECT_STREQ(s.value.c_str(), "yah2er0ne");
+        ASSERT_EQ(s.err, OpError::Ok);
+        ASSERT_STREQ(s.value.c_str(), "yah2er0ne") << "s.value = " << s.value;
+    }
+
+    TEST_F(BTreeTest, reopen)
+    {
+        auto s = engine->get("hello");
+        ASSERT_EQ(s.err, OpError::KeyNotFound);
+
+        s = engine->get("cyber");
+        ASSERT_EQ(s.err, OpError::Ok);
+        ASSERT_STREQ(s.value.c_str(), "yah2er0ne") << "s.value = " << s.value;
     }
 } // namespace
