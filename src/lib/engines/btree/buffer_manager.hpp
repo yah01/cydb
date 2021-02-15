@@ -115,22 +115,18 @@ namespace cyber
 
             return res;
         }
-        BTreeNode *get_root()
-        {
-            return get(metadata.root_id);
-        }
+        inline BTreeNode *get_root() { return get(metadata.root_id); }
         inline void pin(const page_id_t &page_id) { pinned_page.insert(page_id); }
         inline void unpin(const page_id_t &page_id) { pinned_page.erase(page_id); }
         page_id_t allocate_page(CellType cell_type)
         {
             PageHeader header;
             header.type = cell_type;
-            header.data_num = 0;
             header.cell_end = PAGE_SIZE;
             header.rightmost_child = metadata.node_num;
             header.checksum = header.header_checksum();
 
-            ssize_t n = pwrite64(data_file, &header, PAGE_HEADER_SIZE, metadata.node_num * PAGE_SIZE);
+            ssize_t n = pwrite64(data_file, &header, PAGE_HEADER_SIZE, page_off(metadata.node_num));
             if (n == -1)
                 puts(strerror(errno));
 
@@ -144,7 +140,7 @@ namespace cyber
             char *page;
             try
             {
-                page = new char[PAGE_SIZE];
+                page = new char[PAGE_SIZE]();
             }
             catch (const std::exception &e)
             {
@@ -152,8 +148,7 @@ namespace cyber
                 exit(-1);
             }
 
-            uint64_t page_pos = (uint64_t)page_id * PAGE_SIZE;
-            ssize_t n = pread64(data_file, page, PAGE_SIZE, page_pos);
+            ssize_t n = pread64(data_file, page, PAGE_SIZE, page_off(page_id));
             if (n == -1)
                 puts(strerror(errno));
 
@@ -162,9 +157,8 @@ namespace cyber
         // write a page to disk
         bool store_page(BTreeNode *node)
         {
-            uint64_t page_pos = (uint64_t)(node->page_id) * PAGE_SIZE;
             node->cal_checksum();
-            ssize_t n = pwrite64(data_file, node->raw_page(), PAGE_SIZE, page_pos);
+            ssize_t n = pwrite64(data_file, node->raw_page(), PAGE_SIZE, page_off(node->page_id));
             if (n == -1)
                 puts(strerror(errno));
 

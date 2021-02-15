@@ -23,49 +23,57 @@ namespace
         }
 
         static void SetUpTestSuite() { std::filesystem::remove_all("test_db"); }
-        static void TearDownTestSuite() { std::filesystem::remove_all("test_db"); }
+        // static void TearDownTestSuite() { std::filesystem::remove_all("test_db"); }
 
         BTree *engine;
     };
 
     TEST_F(BTreeTest, split)
     {
-        for (int i = 0; true; i++)
+        cyber::OpStatus s;
+        try
         {
-            auto s = engine->set(std::to_string(i), std::to_string(i));
-            ASSERT_EQ(s.err, OpError::Ok);
-
-            // splitted
-            if (engine->metadata().node_num > 1)
+            for (int i = 0; true; i++)
             {
-                ASSERT_EQ(engine->metadata().data_num, i + 1) << "metadata.data_num = " << engine->metadata().data_num;
-                ASSERT_EQ(engine->metadata().node_num, 3) << "metadata.data_num = " << engine->metadata().node_num;
-                ASSERT_EQ(engine->metadata().root_id, 2) << "metadata.data_num = " << engine->metadata().root_id;
-                // read
-                for (int j = 0; j <= i; j++)
-                {
-                    s = engine->get(std::to_string(j));
-                    ASSERT_EQ(s.err, OpError::Ok) << "failed at " << j;
-                    ASSERT_EQ(s.value, std::to_string(j)) << "failed at " << j;
-                }
+                s = engine->set(std::to_string(i), std::to_string(i));
+                ASSERT_EQ(s.err, OpError::Ok);
 
-                // remove
-                for (int j = 0; j <= i; j++)
+                // splitted
+                if (engine->metadata().node_num > 1)
                 {
-                    s = engine->remove(std::to_string(j));
-                    ASSERT_EQ(s.err, OpError::Ok) << "failed at " << j;
-                }
-                ASSERT_EQ(engine->metadata().data_num, 0) << "metadata.data_num = " << engine->metadata().data_num;
+                    ASSERT_EQ(engine->metadata().data_num, i + 1) << "metadata.data_num = " << engine->metadata().data_num;
+                    ASSERT_EQ(engine->metadata().node_num, 3) << "metadata.data_num = " << engine->metadata().node_num;
+                    ASSERT_EQ(engine->metadata().root_id, 2) << "metadata.data_num = " << engine->metadata().root_id;
+                    // read
+                    for (int j = 0; j <= i; j++)
+                    {
+                        s = engine->get(std::to_string(j));
+                        ASSERT_EQ(s.err, OpError::Ok) << "failed at " << j;
+                        ASSERT_EQ(s.value, std::to_string(j)) << "failed at " << j;
+                    }
 
-                // read after remove all data
-                for (int j = 0; j <= i; j++)
-                {
-                    s = engine->get(std::to_string(j));
-                    ASSERT_EQ(s.err, OpError::KeyNotFound) << "failed at " << j;
-                }
+                    // remove
+                    for (int j = 0; j <= i; j++)
+                    {
+                        s = engine->remove(std::to_string(j));
+                        ASSERT_EQ(s.err, OpError::Ok) << "failed at " << j;
+                    }
+                    ASSERT_EQ(engine->metadata().data_num, 0) << "metadata.data_num = " << engine->metadata().data_num;
 
-                break;
+                    // read after remove all data
+                    for (int j = 0; j <= i; j++)
+                    {
+                        s = engine->get(std::to_string(j));
+                        ASSERT_EQ(s.err, OpError::KeyNotFound) << "failed at " << j;
+                    }
+
+                    break;
+                }
             }
+        }
+        catch (const std::exception &e)
+        {
+            ASSERT_TRUE(false) << e.what();
         }
     }
 

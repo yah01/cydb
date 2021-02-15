@@ -18,6 +18,7 @@ namespace cyber
         OpError err;
         std::string value;
 
+        OpStatus() = default;
         OpStatus(const OpError &err) : err(err) {}
         OpStatus(const OpError &err, std::string &value) : err(err), value(value) {}
         OpStatus(const OpError &err, std::string &&value) : err(err), value(std::move(value)) {}

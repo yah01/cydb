@@ -16,7 +16,7 @@ namespace cyber
     namespace views = std::views;
     using views::iota;
 
-    constexpr size_t PAGE_SIZE = 4 << 10; // 16KiB
+    constexpr size_t PAGE_SIZE = 16 << 10; // 16KiB
 
     using page_id_t = uint32_t;
     using len_t = uint32_t;
@@ -26,6 +26,9 @@ namespace cyber
 
     static_assert(std::numeric_limits<num_t>::max() >= PAGE_SIZE);
     static_assert(std::numeric_limits<offset_t>::max() >= PAGE_SIZE);
+
+    // utils
+    inline uint64_t page_off(const page_id_t id) { return id * PAGE_SIZE; }
 
     enum struct CellType : uint8_t
     {
@@ -53,19 +56,19 @@ namespace cyber
 
     struct PageHeader
     {
-        checksum_t checksum;
+        checksum_t checksum = 0;
         CellType type;
-        num_t data_num;
+        num_t data_num = 0;
         offset_t cell_end;         // cells grow left, cell_end is the offset of the last cell.
         page_id_t rightmost_child; // equal to the own id if no rightmost_child
 
         checksum_t header_checksum()
         {
-            checksum_t *header = (checksum_t *)this;
             checksum_t checksum = 0;
-            int n = sizeof(PageHeader) / 8;
+            checksum_t *data = (checksum_t *)this;
+            int n = sizeof(PageHeader) / sizeof(checksum);
             for (auto i : iota(1, n))
-                checksum ^= header[i];
+                checksum ^= data[i];
 
             return checksum;
         }
@@ -336,7 +339,6 @@ namespace cyber
             if (old_checksum != cal_checksum())
             {
                 valid = false;
-                exit(-1);
                 return false;
             }
 
@@ -350,8 +352,8 @@ namespace cyber
             offset_t boundary = PAGE_SIZE;
             for (auto i : views::iota(0u, header->data_num))
             {
-                offset_t l = tmp_pointers[i];
-                offset_t r = tmp_pointers[i];
+                offset_t l = tmp_pointers[i],
+                         r = tmp_pointers[i];
                 if (header->type == CellType::KeyCell)
                     r += KeyCell(page + tmp_pointers[i]).size();
                 else
