@@ -205,7 +205,9 @@ namespace cyber
 
         // cell methods
         inline KeyCell key_cell(size_t i) { return KeyCell(raw_cell(i)); }
+        inline KeyCell key_cell_at(offset_t off) { return KeyCell(page + off); }
         inline KeyValueCell key_value_cell(size_t i) { return KeyValueCell(raw_cell(i)); }
+        inline KeyValueCell key_value_cell_at(offset_t off) { return KeyValueCell(page + off); }
         void remove(size_t index)
         {
             remove_cell(index);
@@ -362,7 +364,7 @@ namespace cyber
                 if (boundary > r)
                 {
                     available_list.push_back(AvailableEntry(r, boundary - r));
-                    available_space_sum += boundary - r;
+                    total_available_space += boundary - r;
                 }
                 boundary = l;
             }
@@ -375,7 +377,7 @@ namespace cyber
                 return entry.offset > in_list_entry.len;
             });
             it = available_list.insert(it, entry);
-            available_space_sum += entry.len;
+            total_available_space += entry.len;
 
             while (it != available_list.end())
             {
@@ -430,6 +432,17 @@ namespace cyber
                 return key_value_cell(i).size();
             }
         }
+        inline size_t cell_size_at(offset_t off)
+        {
+            if (header->type == CellType::KeyCell)
+            {
+                return key_cell_at(off).size();
+            }
+            else
+            {
+                return key_value_cell_at(off).size();
+            }
+        }
         // no side effects remove
         // pointers will not be modified
         void remove_cell(uint32_t index)
@@ -439,7 +452,7 @@ namespace cyber
             while (!available_list.empty() && available_list.back().offset == header->cell_end)
             {
                 header->cell_end += available_list.back().len;
-                available_space_sum -= available_list.back().len;
+                total_available_space -= available_list.back().len;
                 available_list.pop_back();
             }
         }
@@ -462,7 +475,7 @@ namespace cyber
                 else
                     available_list.erase(it);
 
-                available_space_sum -= kcell_size;
+                total_available_space -= kcell_size;
             }
             else if (free_space() >= kcell_size + sizeof(offset_t))
             {
@@ -500,7 +513,7 @@ namespace cyber
                 else
                     available_list.erase(it);
 
-                available_space_sum -= kvcell_size;
+                total_available_space -= kvcell_size;
             }
             else if (free_space() >= kvcell_size + sizeof(offset_t))
             {
@@ -518,12 +531,37 @@ namespace cyber
             return cell_offset;
         }
 
+        len_t defragment()
+        {
+            offset_t total_off = 0;
+            for (auto it = available_list.begin(), next = it; it != available_list.end(); it = next)
+            {
+                total_off += it->len;
+                next = std::next(it);
+                offset_t cell_offset;
+                if (next != available_list.end())
+                    cell_offset = next->offset + next->len;
+                else
+                    cell_offset = header->cell_end;
+                std::memmove(page + cell_offset + total_off,
+                             page + cell_offset,
+                             cell_size_at(cell_offset));
+            }
+
+            available_list.clear();
+            total_available_space = 0;
+
+            header->cell_end += total_off;
+
+            return total_off;
+        }
+
         // data members
         bool valid = true; // true iff the checksum is correct
         char *page;
         PageHeader *header;
-        offset_t *pointers; // point to the offset of cells.
-        std::list<AvailableEntry> available_list;
-        len_t available_space_sum = 0;
+        offset_t *pointers;                       // point to the offset of cells.
+        std::list<AvailableEntry> available_list; // descending by offset
+        len_t total_available_space = 0;
     };
 } // namespace cyber
