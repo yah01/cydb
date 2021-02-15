@@ -49,7 +49,7 @@ namespace cyber
                 // and the node has no enough free space
                 while (node->update_value(index, value) == WriteError::Failed)
                 {
-                    uint32_t node_id = split(node, parent_map);
+                    page_id_t node_id = split(node, parent_map);
                     std::tie(node, parent_map) = go_to_leaf(buffer_manager.get(node_id), key);
                 }
             }
@@ -57,7 +57,7 @@ namespace cyber
             {
                 while (node->insert_value(key, value) == WriteError::Failed)
                 {
-                    uint32_t node_id = split(node, parent_map);
+                    page_id_t node_id = split(node, parent_map);
                     std::tie(node, parent_map) = go_to_leaf(buffer_manager.get(node_id), key);
                 }
                 buffer_manager.metadata.data_num++;
@@ -91,20 +91,17 @@ namespace cyber
     private:
         // BTree operations
         // return the highest effected node id
-        uint32_t split(BTreeNode *node, std::unordered_map<uint32_t, uint32_t> &parent_map)
+        page_id_t split(BTreeNode *node, std::unordered_map<uint32_t, uint32_t> &parent_map)
         {
             buffer_manager.pin(node->page_id);
 
-            uint32_t node_id = node->page_id;
-            uint32_t sibling_id = buffer_manager.allocate_page(node->type());
-            int32_t parent_id = -1;
-            if (auto it = parent_map.find(node_id); it != parent_map.end())
-                parent_id = it->second;
+            page_id_t node_id = node->page_id;
+            page_id_t sibling_id = buffer_manager.allocate_page(node->type());
 
             buffer_manager.pin(sibling_id);
             BTreeNode *sibling = buffer_manager.get(sibling_id);
 
-            size_t n = node->data_num();
+            num_t n = node->data_num();
             std::string key;
             uint32_t index = n / 2 + 1;
             for (int i = index; i < n; i++)
@@ -127,8 +124,13 @@ namespace cyber
                 node->remove(index);
             }
 
+            bool is_root = false;
+            page_id_t parent_id = 0;
+            if (auto it = parent_map.find(node_id); it != parent_map.end())
+                parent_id = it->second;
+            else
+                is_root = true;
             // current node is the root
-            bool is_root = parent_id == -1;
             if (is_root)
             {
                 parent_id = buffer_manager.allocate_page(CellType::KeyCell);

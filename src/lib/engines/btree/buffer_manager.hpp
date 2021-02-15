@@ -25,7 +25,7 @@ namespace cyber
 
     struct Metadata
     {
-        uint32_t root_id;
+        page_id_t root_id;
         uint32_t node_num;
         uint64_t data_num;
     };
@@ -38,7 +38,7 @@ namespace cyber
         Metadata metadata;
 
         // TODO: modify the default buffer size
-        BufferManager(uint64_t size = PAGE_SIZE) : buffer_size(size) {}
+        BufferManager(size_t size = PAGE_SIZE) : buffer_size(size) {}
 
         ~BufferManager()
         {
@@ -94,7 +94,7 @@ namespace cyber
         }
 
         // node methods
-        BTreeNode *get(const uint32_t &page_id)
+        BTreeNode *get(const page_id_t &page_id)
         {
             BTreeNode *res = nullptr;
 
@@ -119,29 +119,27 @@ namespace cyber
         {
             return get(metadata.root_id);
         }
-        inline void pin(const uint32_t &page_id) { pinned_page.insert(page_id); }
-        inline void unpin(const uint32_t &page_id) { pinned_page.erase(page_id); }
-        uint32_t allocate_page(CellType cell_type, int parent = -1)
+        inline void pin(const page_id_t &page_id) { pinned_page.insert(page_id); }
+        inline void unpin(const page_id_t &page_id) { pinned_page.erase(page_id); }
+        page_id_t allocate_page(CellType cell_type)
         {
             PageHeader header;
             header.type = cell_type;
             header.data_num = 0;
             header.cell_end = PAGE_SIZE;
-            header.rightmost_child = -1;
+            header.rightmost_child = metadata.node_num;
             header.checksum = header.header_checksum();
 
             ssize_t n = pwrite64(data_file, &header, PAGE_HEADER_SIZE, metadata.node_num * PAGE_SIZE);
             if (n == -1)
                 puts(strerror(errno));
 
-            metadata.node_num++;
-
-            return metadata.node_num - 1;
+            return metadata.node_num++;
         }
 
     private:
         // read page from disk
-        char *load_page(const uint32_t &page_id)
+        char *load_page(const page_id_t &page_id)
         {
             char *page;
             try
@@ -175,7 +173,7 @@ namespace cyber
         }
 
         // load page to buffer pool
-        char *load(const uint32_t &page_id)
+        char *load(const page_id_t &page_id)
         {
             // need to evict a page
             if (current_size + PAGE_SIZE > buffer_size)
@@ -193,10 +191,10 @@ namespace cyber
         }
         bool evict()
         {
-            uint32_t id = 0;
+            page_id_t id = 0;
             for (auto it = buffer_map.begin(); it != buffer_map.end(); it++)
             {
-                if (const uint32_t &id = it->second->page_id;
+                if (const page_id_t &id = it->second->page_id;
                     pinned_page.find(id) == pinned_page.end())
                 {
                     if (!store_page(it->second))
@@ -214,8 +212,8 @@ namespace cyber
         // data members
         int data_file;
         fs::path dir;
-        uint64_t buffer_size;
-        uint64_t current_size;
+        size_t buffer_size;
+        size_t current_size;
         std::unordered_map<uint32_t, BTreeNode *> buffer_map;
         std::unordered_set<uint32_t> pinned_page;
     };
