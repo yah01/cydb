@@ -10,6 +10,11 @@ Should always use them by row pointer, except you try to create a new region.
 #include <ranges>
 #include <cmath>
 
+#include "engines/type.h"
+#include "engines/write_ahead_log.hpp"
+
+#include "log.hpp"
+
 namespace cyber
 {
     namespace ranges = std::ranges;
@@ -18,18 +23,12 @@ namespace cyber
 
     constexpr size_t PAGE_SIZE = 16 << 10; // 16KiB
 
-    using page_id_t = uint32_t;
-    using len_t = uint32_t;
-    using checksum_t = uint64_t;
-    using num_t = uint32_t;
-    using offset_t = uint32_t;
-
     static_assert(std::numeric_limits<num_t>::max() >= PAGE_SIZE);
     static_assert(std::numeric_limits<offset_t>::max() >= PAGE_SIZE);
     static_assert(sizeof(len_t) >= sizeof(offset_t));
 
     // utils
-    inline uint64_t page_off(const page_id_t id) { return id * PAGE_SIZE; }
+    inline uint64_t page_off(const id_t id) { return id * PAGE_SIZE; }
 
     enum struct CellType : uint8_t
     {
@@ -40,10 +39,10 @@ namespace cyber
     struct KeyCellHeader
     {
         len_t key_size;
-        page_id_t child_id;
+        id_t child_id;
 
-        KeyCellHeader(const std::string &key, const page_id_t &child_id) : key_size(static_cast<len_t>(key.length())),
-                                                                           child_id(child_id) {}
+        KeyCellHeader(const std::string &key, const id_t &child_id) : key_size(static_cast<len_t>(key.length())),
+                                                                      child_id(child_id) {}
     };
 
     struct KeyValueCellHeader
@@ -60,8 +59,8 @@ namespace cyber
         checksum_t checksum = 0;
         CellType type;
         num_t data_num = 0;
-        offset_t cell_end;         // cells grow left, cell_end is the offset of the last cell.
-        page_id_t rightmost_child; // equal to the own id if no rightmost_child
+        offset_t cell_end;    // cells grow left, cell_end is the offset of the last cell.
+        id_t rightmost_child; // equal to the own id if no rightmost_child
 
         checksum_t header_checksum()
         {
@@ -131,7 +130,7 @@ namespace cyber
         using Cell::write_key;
         // void write_key(const std::string &key) override { Cell::write_key(key); }
 
-        page_id_t child() const { return header->child_id; }
+        id_t child() const { return header->child_id; }
         void write_child(const int32_t child_id) { header->child_id = child_id; }
     };
     class KeyValueCell : public Cell
@@ -171,10 +170,10 @@ namespace cyber
     class BTreeNode
     {
     public:
-        const page_id_t page_id;
+        const id_t page_id;
 
         // BTreeNode(uint32_t page_id) : page_id(page_id) {}
-        BTreeNode(page_id_t page_id, char *buf) : page_id(page_id), page(buf)
+        BTreeNode(id_t page_id, char *buf, WriteAheadLog &wal) : page_id(page_id), page(buf), wal(wal)
         {
             header = (PageHeader *)buf;
             pointers = (offset_t *)(buf + PAGE_HEADER_SIZE);
@@ -185,11 +184,12 @@ namespace cyber
         ~BTreeNode() { delete[] page; }
 
         inline const char *raw_page() { return this->page; }
+        inline offset_t wal_end_off() { return this->max_wal_end_off; }
 
         // header methods
         inline CellType type() const { return header->type; }
         inline num_t data_num() const { return header->data_num; }
-        inline page_id_t &rightmost_child() { return header->rightmost_child; }
+        inline id_t &rightmost_child() { return header->rightmost_child; }
         // re-calculate the checksum
         // if you try to check, save the header->checksum first
         checksum_t cal_checksum()
@@ -211,6 +211,12 @@ namespace cyber
         inline KeyValueCell key_value_cell_at(offset_t off) { return KeyValueCell(page + off); }
         void remove(num_t index)
         {
+            Record *rec = LogicalRecord::new_record(wal.gen_id(), page_id,
+                                                    RecordType::Remove, sizeof(index), 0,
+                                                    (char *)&index, nullptr);
+            max_wal_end_off = wal.log(*rec);
+            delete[]((char *)rec);
+
             remove_cell(index);
             std::memmove(pointers + index, pointers + index + 1, (header->data_num - index - 1) * sizeof(uint32_t));
             header->data_num--;
@@ -224,15 +230,21 @@ namespace cyber
                                       }) -
                                       pointers);
         }
-        page_id_t find_child(const std::string &key)
+        id_t find_child(const std::string &key)
         {
             num_t index = find_child_index(key);
             if (index < header->data_num)
                 return key_cell(index).child();
             return header->rightmost_child;
         }
-        std::optional<offset_t> update_child(num_t index, const page_id_t &child)
+        std::optional<offset_t> update_child(num_t index, const id_t &child)
         {
+            Record *rec = LogicalRecord::new_record(wal.gen_id(), page_id,
+                                                    RecordType::Update, sizeof(index), sizeof(child),
+                                                    (char *)&index, (char *)&child);
+            max_wal_end_off = wal.log(*rec);
+            delete[]((char *)rec);
+
             if (index >= header->data_num)
             {
                 header->rightmost_child = child;
@@ -242,8 +254,14 @@ namespace cyber
             key_cell(index).write_child(child);
             return pointers[index];
         }
-        std::optional<offset_t> insert_child(const std::string &key, const page_id_t child)
+        std::optional<offset_t> insert_child(const std::string &key, const id_t child)
         {
+            Record *rec = LogicalRecord::new_record(wal.gen_id(), page_id,
+                                                    RecordType::Insert, key.length(), sizeof(child),
+                                                    key.c_str(), (char *)&child);
+            max_wal_end_off = wal.log(*rec);
+            delete[]((char *)rec);
+
             num_t index = find_child_index(key);
             if (index >= header->data_num && header->data_num > 0)
                 return std::nullopt;
@@ -278,6 +296,12 @@ namespace cyber
         }
         std::optional<offset_t> update_value(num_t index, const std::string &value)
         {
+            Record *rec = LogicalRecord::new_record(wal.gen_id(), page_id,
+                                                    RecordType::Update, sizeof(index), value.length(),
+                                                    (char *)&index, value.c_str());
+            max_wal_end_off = wal.log(*rec);
+            delete[]((char *)rec);
+
             KeyValueCell kvcell(key_value_cell(index));
 
             // append the new value, and mark the old cell as removed
@@ -308,6 +332,12 @@ namespace cyber
         // return 0 when there is no enough free space
         std::optional<offset_t> insert_value(const std::string &key, const std::string &value)
         {
+            Record *rec = LogicalRecord::new_record(wal.gen_id(), page_id,
+                                                    RecordType::Insert, key.length(), value.length(),
+                                                    key.c_str(), value.c_str());
+            max_wal_end_off = wal.log(*rec);
+            delete[]((char *)rec);
+
             offset_t cell_offset = insert_kvcell(key, value);
             if (cell_offset == 0)
                 return std::nullopt;
@@ -456,7 +486,7 @@ namespace cyber
 
         // KeyCell methods
         // you should grantee there is enough free space
-        offset_t insert_kcell(const std::string &key, const page_id_t &child)
+        offset_t insert_kcell(const std::string &key, const id_t &child)
         {
             size_t kcell_size = KEY_CELL_HEADER_SIZE + key.length();
             auto it = ranges::find_if(available_list, [&kcell_size](const AvailableEntry &entry) {
@@ -560,5 +590,7 @@ namespace cyber
         offset_t *pointers;                       // point to the offset of cells.
         std::list<AvailableEntry> available_list; // descending by offset
         len_t total_available_space = 0;
+        offset_t max_wal_end_off = 0;
+        WriteAheadLog &wal;
     };
 } // namespace cyber

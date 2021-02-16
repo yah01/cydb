@@ -25,7 +25,7 @@ namespace cyber
 
     struct Metadata
     {
-        page_id_t root_id;
+        id_t root_id;
         uint32_t node_num;
         uint64_t data_num;
     };
@@ -42,10 +42,16 @@ namespace cyber
 
         ~BufferManager()
         {
+            offset_t max_wal_end_off = 0;
             for (auto pair : buffer_map)
             {
+                if (pair.second->wal_end_off() > max_wal_end_off)
+                    max_wal_end_off = pair.second->wal_end_off();
+
                 store_page(pair.second);
             }
+            wal.set_trim_off(max_wal_end_off);
+
             close(data_file);
 
             fs::path metadata_path = dir / "metadata";
@@ -59,11 +65,13 @@ namespace cyber
             close(metadata_file);
         }
 
-        OpStatus open(const char *path)
+        OpStatus open(const char *dir_path)
         {
-            if (!fs::exists(path))
-                fs::create_directory(path);
-            dir = fs::path(path);
+            if (!fs::exists(dir_path))
+                fs::create_directory(dir_path);
+            dir = fs::path(dir_path);
+
+            wal.open(dir.c_str());
 
             fs::path data_file_path, metadata_path;
             data_file_path = dir / "data";
@@ -90,11 +98,50 @@ namespace cyber
             }
             close(metadata_file);
 
+            wal.for_each_record([&](const Record &rec) {
+                LogicalRecord *record = (LogicalRecord *)rec.redo;
+                BTreeNode *node = get(rec.page_id);
+
+                if (record->type == RecordType::Insert)
+                {
+                    if (node->type() == CellType::KeyCell)
+                    {
+                        id_t *child_id = (id_t *)(record->record + record->key_len);
+                        node->insert_child(record->key_string(), *child_id);
+                    }
+                    else
+                    {
+                        len_t value_len = rec.redo_len - record->key_len;
+                        node->insert_value(record->key_string(),
+                                           record->value_string(value_len));
+                    }
+                }
+                else if (record->type == RecordType::Update)
+                {
+                    num_t *index = (num_t *)(record->record);
+                    if (node->type() == CellType::KeyCell)
+                    {
+                        id_t *child_id = (id_t *)(record->record + record->key_len);
+                        node->update_child(*index, *child_id);
+                    }
+                    else
+                    {
+                        len_t value_len = rec.redo_len - record->key_len;
+                        node->update_value(*index, record->value_string(value_len));
+                    }
+                }
+                else if (record->type == RecordType::Remove)
+                {
+                    num_t *index = (num_t *)(record->record);
+                    node->remove(*index);
+                }
+            });
+
             return OpStatus(OpError::Ok);
         }
 
         // node methods
-        BTreeNode *get(const page_id_t &page_id)
+        BTreeNode *get(const id_t &page_id)
         {
             BTreeNode *res = nullptr;
 
@@ -106,7 +153,7 @@ namespace cyber
                     return nullptr;
                 }
 
-                res = new BTreeNode(page_id, page);
+                res = new BTreeNode(page_id, page, wal);
                 buffer_map[page_id] = res;
             }
 
@@ -116,9 +163,9 @@ namespace cyber
             return res;
         }
         inline BTreeNode *get_root() { return get(metadata.root_id); }
-        inline void pin(const page_id_t &page_id) { pinned_page.insert(page_id); }
-        inline void unpin(const page_id_t &page_id) { pinned_page.erase(page_id); }
-        page_id_t allocate_page(CellType cell_type)
+        inline void pin(const id_t &page_id) { pinned_page.insert(page_id); }
+        inline void unpin(const id_t &page_id) { pinned_page.erase(page_id); }
+        id_t allocate_page(CellType cell_type)
         {
             PageHeader header;
             header.type = cell_type;
@@ -135,7 +182,7 @@ namespace cyber
 
     private:
         // read page from disk
-        char *load_page(const page_id_t &page_id)
+        char *load_page(const id_t &page_id)
         {
             char *page;
             try
@@ -167,7 +214,7 @@ namespace cyber
         }
 
         // load page to buffer pool
-        char *load(const page_id_t &page_id)
+        char *load(const id_t &page_id)
         {
             // need to evict a page
             if (current_size + PAGE_SIZE > buffer_size)
@@ -187,7 +234,7 @@ namespace cyber
         {
             for (auto it : iota(buffer_map.begin(), buffer_map.end()))
             {
-                if (const page_id_t &id = it->second->page_id;
+                if (const id_t &id = it->second->page_id;
                     pinned_page.find(id) == pinned_page.end())
                 {
                     if (!store_page(it->second))
@@ -205,6 +252,7 @@ namespace cyber
         // data members
         int data_file;
         fs::path dir;
+        WriteAheadLog wal;
         size_t buffer_size;
         size_t current_size;
         std::unordered_map<uint32_t, BTreeNode *> buffer_map;

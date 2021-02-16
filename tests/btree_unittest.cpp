@@ -23,7 +23,6 @@ namespace
         }
 
         static void SetUpTestSuite() { std::filesystem::remove_all("test_db"); }
-        // static void TearDownTestSuite() { std::filesystem::remove_all("test_db"); }
 
         BTree *engine;
     };
