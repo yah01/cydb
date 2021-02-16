@@ -24,7 +24,7 @@ namespace cyber
             BTreeNode *node;
             std::tie(node, std::ignore) = go_to_leaf(key);
 
-            size_t index = node->find_value_index(key);
+            num_t index = node->find_value_index(key);
             if (index >= node->data_num()) // no data in the node
             {
                 return OpStatus(OpError::KeyNotFound);
@@ -42,7 +42,7 @@ namespace cyber
         {
             auto [node, parent_map] = go_to_leaf(key);
             // there is still enough space
-            size_t index = node->find_value_index(key);
+            num_t index = node->find_value_index(key);
             if (index < node->data_num() && node->key_value_cell(index) == key)
             {
                 // new value length is greater than the old value's
@@ -71,7 +71,7 @@ namespace cyber
             BTreeNode *node;
             std::tie(node, std::ignore) = go_to_leaf(key);
 
-            size_t index = node->find_value_index(key);
+            num_t index = node->find_value_index(key);
             if (index < node->data_num() && key == node->key_value_cell(index))
                 node->remove(index);
             else

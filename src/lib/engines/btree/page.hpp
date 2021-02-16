@@ -26,6 +26,7 @@ namespace cyber
 
     static_assert(std::numeric_limits<num_t>::max() >= PAGE_SIZE);
     static_assert(std::numeric_limits<offset_t>::max() >= PAGE_SIZE);
+    static_assert(sizeof(len_t) >= sizeof(offset_t));
 
     // utils
     inline uint64_t page_off(const page_id_t id) { return id * PAGE_SIZE; }
@@ -41,7 +42,7 @@ namespace cyber
         len_t key_size;
         page_id_t child_id;
 
-        KeyCellHeader(const std::string &key, const page_id_t &child_id) : key_size(key.length()),
+        KeyCellHeader(const std::string &key, const page_id_t &child_id) : key_size(static_cast<len_t>(key.length())),
                                                                            child_id(child_id) {}
     };
 
@@ -50,8 +51,8 @@ namespace cyber
         len_t key_size;
         len_t value_size;
 
-        KeyValueCellHeader(const std::string &key, const std::string &value) : key_size(key.length()),
-                                                                               value_size(value.length()) {}
+        KeyValueCellHeader(const std::string &key, const std::string &value) : key_size(static_cast<len_t>(key.length())),
+                                                                               value_size(static_cast<len_t>(value.length())) {}
     };
 
     struct PageHeader
@@ -91,7 +92,7 @@ namespace cyber
         virtual size_t size() const = 0;
         virtual std::string key_string() = 0;
         virtual void write_key(const char *key, const len_t n) = 0;
-        virtual void write_key(const std::string &key) { write_key(key.c_str(), key.length()); }
+        virtual void write_key(const std::string &key) { write_key(key.c_str(), static_cast<len_t>(key.length())); }
         friend auto operator<=>(const Cell &lhs, const std::string &rhs)
         {
             for (auto i : iota(0ul, lhs.key_len() < rhs.length() ? lhs.key_len()
@@ -164,7 +165,7 @@ namespace cyber
         inline len_t value_len() const { return header->value_size; }
         std::string value_string() const { return std::string(value, header->value_size); }
         inline void write_value(const char *value, const len_t n) { memcpy(this->value, value, header->value_size = n); }
-        inline void write_value(const std::string &value) { write_value(value.c_str(), value.length()); }
+        inline void write_value(const std::string &value) { write_value(value.c_str(), static_cast<len_t>(value.length())); }
     };
 
     class BTreeNode
@@ -201,14 +202,14 @@ namespace cyber
 
             return header->checksum;
         }
-        inline size_t free_space() const { return header->cell_end - PAGE_HEADER_SIZE - header->data_num * sizeof(uint32_t); }
+        inline len_t free_space() const { return header->cell_end - static_cast<len_t>(PAGE_HEADER_SIZE) - header->data_num * static_cast<len_t>(sizeof(offset_t)); }
 
         // cell methods
-        inline KeyCell key_cell(size_t i) { return KeyCell(raw_cell(i)); }
+        inline KeyCell key_cell(num_t i) { return KeyCell(raw_cell(i)); }
         inline KeyCell key_cell_at(offset_t off) { return KeyCell(page + off); }
-        inline KeyValueCell key_value_cell(size_t i) { return KeyValueCell(raw_cell(i)); }
+        inline KeyValueCell key_value_cell(num_t i) { return KeyValueCell(raw_cell(i)); }
         inline KeyValueCell key_value_cell_at(offset_t off) { return KeyValueCell(page + off); }
-        void remove(size_t index)
+        void remove(num_t index)
         {
             remove_cell(index);
             std::memmove(pointers + index, pointers + index + 1, (header->data_num - index - 1) * sizeof(uint32_t));
@@ -216,21 +217,21 @@ namespace cyber
         }
 
         // KeyCell methods
-        size_t find_child_index(const std::string &key)
+        num_t find_child_index(const std::string &key)
         {
-            return std::upper_bound(pointers, pointers + header->data_num, key, [&](const std::string &key, const offset_t &offset) {
-                       return KeyCell(page + offset) > key;
-                   }) -
-                   pointers;
+            return static_cast<num_t>(std::upper_bound(pointers, pointers + header->data_num, key, [&](const std::string &key, const offset_t &offset) {
+                                          return KeyCell(page + offset) > key;
+                                      }) -
+                                      pointers);
         }
         page_id_t find_child(const std::string &key)
         {
-            size_t index = find_child_index(key);
+            num_t index = find_child_index(key);
             if (index < header->data_num)
                 return key_cell(index).child();
             return header->rightmost_child;
         }
-        std::optional<offset_t> update_child(size_t index, const page_id_t &child)
+        std::optional<offset_t> update_child(num_t index, const page_id_t &child)
         {
             if (index >= header->data_num)
             {
@@ -243,7 +244,7 @@ namespace cyber
         }
         std::optional<offset_t> insert_child(const std::string &key, const page_id_t child)
         {
-            size_t index = find_child_index(key);
+            num_t index = find_child_index(key);
             if (index >= header->data_num && header->data_num > 0)
                 return std::nullopt;
 
@@ -268,14 +269,14 @@ namespace cyber
 
         // equal to lower_bound
         // return value -1 means there is no entry.
-        size_t find_value_index(const std::string &key)
+        num_t find_value_index(const std::string &key)
         {
             return std::lower_bound(pointers, pointers + header->data_num, key, [&](const offset_t &offset, const std::string &key) {
                        return KeyValueCell(page + offset) < key;
                    }) -
                    pointers;
         }
-        std::optional<offset_t> update_value(size_t index, const std::string &value)
+        std::optional<offset_t> update_value(num_t index, const std::string &value)
         {
             KeyValueCell kvcell(key_value_cell(index));
 
@@ -314,7 +315,7 @@ namespace cyber
             if (header->cell_end > cell_offset)
                 header->cell_end = cell_offset;
 
-            size_t index = find_value_index(key);
+            num_t index = find_value_index(key);
             pointers[header->data_num] = cell_offset;
             header->data_num++;
 
