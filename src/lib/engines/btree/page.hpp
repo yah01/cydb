@@ -355,11 +355,7 @@ namespace cyber
             for (auto i : views::iota(0u, header->data_num))
             {
                 offset_t l = tmp_pointers[i],
-                         r = tmp_pointers[i];
-                if (header->type == CellType::KeyCell)
-                    r += KeyCell(page + tmp_pointers[i]).size();
-                else
-                    r += KeyValueCell(page + tmp_pointers[i]).size();
+                         r = tmp_pointers[i] + cell_size_at(tmp_pointers[i]);
 
                 if (boundary > r)
                 {
@@ -373,7 +369,7 @@ namespace cyber
         // available list
         void insert_available_entry(const AvailableEntry &entry)
         {
-            auto it = std::find_if(available_list.begin(), available_list.end(), [&entry](const AvailableEntry &in_list_entry) {
+            auto it = ranges::find_if(available_list, [&entry](const AvailableEntry &in_list_entry) {
                 return entry.offset > in_list_entry.len;
             });
             it = available_list.insert(it, entry);
@@ -462,7 +458,7 @@ namespace cyber
         offset_t insert_kcell(const std::string &key, const page_id_t &child)
         {
             size_t kcell_size = KEY_CELL_HEADER_SIZE + key.length();
-            auto it = std::find_if(available_list.begin(), available_list.end(), [&kcell_size](const AvailableEntry &entry) {
+            auto it = ranges::find_if(available_list, [&kcell_size](const AvailableEntry &entry) {
                 return entry.len >= kcell_size;
             });
 
@@ -500,7 +496,7 @@ namespace cyber
         offset_t insert_kvcell(const std::string &key, const std::string &value)
         {
             size_t kvcell_size = KEY_VALUE_CELL_HEADER_SIZE + key.length() + value.length();
-            auto it = std::find_if(available_list.begin(), available_list.end(), [&kvcell_size](const AvailableEntry &entry) {
+            auto it = ranges::find_if(available_list, [&kvcell_size](const AvailableEntry &entry) {
                 return entry.len >= kvcell_size;
             });
 
