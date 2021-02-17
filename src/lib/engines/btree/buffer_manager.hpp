@@ -60,6 +60,7 @@ namespace cyber
                 exit(-1);
             if (pwrite64(metadata_file, &metadata, METADATA_SIZE, 0) == -1)
             {
+                std::cerr << "write metadata_file: " << strerror(errno);
                 exit(-1);
             }
             close(metadata_file);
@@ -77,9 +78,10 @@ namespace cyber
             data_file_path = dir / "data";
             metadata_path = dir / "metadata";
 
-            data_file = open64(data_file_path.c_str(), O_CREAT | O_RDWR | O_SYNC, S_IRUSR | S_IWUSR);
+            data_file = open64(data_file_path.c_str(), O_CREAT | O_RDWR | O_SYNC | O_DIRECT, S_IRUSR | S_IWUSR);
             if (data_file == -1)
             {
+                std::cerr << "open data_file: " << strerror(errno);
                 exit(-1);
             }
 
@@ -91,9 +93,13 @@ namespace cyber
 
             int metadata_file = open64(metadata_path.c_str(), O_CREAT | O_RDONLY | O_SYNC, S_IRUSR | S_IWUSR);
             if (metadata_file == -1)
+            {
+                std::cerr << "open metadata_file: " << strerror(errno);
                 exit(-1);
+            }
             if (pread64(metadata_file, &metadata, METADATA_SIZE, 0) == -1)
             {
+                std::cerr << "read metadata_file: " << strerror(errno);
                 exit(-1);
             }
             close(metadata_file);
@@ -167,15 +173,19 @@ namespace cyber
         inline void unpin(const id_t &page_id) { pinned_page.erase(page_id); }
         id_t allocate_page(CellType cell_type)
         {
-            PageHeader header;
-            header.type = cell_type;
-            header.cell_end = PAGE_SIZE;
-            header.rightmost_child = metadata.node_num;
-            header.checksum = header.header_checksum();
+            char *buf = (char *)operator new(PAGE_SIZE, (std::align_val_t)BLOCK_SIZE);
+            PageHeader *header = (PageHeader *)buf;
+            header->type = cell_type;
+            header->cell_end = PAGE_SIZE;
+            header->rightmost_child = metadata.node_num;
+            header->checksum = header->header_checksum();
 
-            ssize_t n = pwrite64(data_file, &header, PAGE_HEADER_SIZE, page_off(metadata.node_num));
+            ssize_t n = pwrite64(data_file, header, PAGE_SIZE, page_off(metadata.node_num));
             if (n == -1)
-                puts(strerror(errno));
+            {
+                std::cerr << "write data_file: " << strerror(errno);
+                exit(-1);
+            }
 
             return metadata.node_num++;
         }
@@ -187,7 +197,7 @@ namespace cyber
             char *page;
             try
             {
-                page = new char[PAGE_SIZE]();
+                page = (char *)operator new(PAGE_SIZE, (std::align_val_t)BLOCK_SIZE);
             }
             catch (const std::exception &e)
             {
@@ -207,7 +217,10 @@ namespace cyber
             node->cal_checksum();
             ssize_t n = pwrite64(data_file, node->raw_page(), PAGE_SIZE, page_off(node->page_id));
             if (n == -1)
-                puts(strerror(errno));
+            {
+                std::cerr << "write data_file: " << strerror(errno);
+                exit(-1);
+            }
 
             delete node;
             return true;

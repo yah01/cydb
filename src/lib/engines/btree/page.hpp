@@ -21,6 +21,7 @@ namespace cyber
     namespace views = std::views;
     using views::iota;
 
+    constexpr size_t BLOCK_SIZE = 512;
     constexpr size_t PAGE_SIZE = 16 << 10; // 16KiB
 
     static_assert(std::numeric_limits<num_t>::max() >= PAGE_SIZE);
@@ -181,7 +182,7 @@ namespace cyber
             init_check();
             init_available_list();
         }
-        ~BTreeNode() { delete[] page; }
+        ~BTreeNode() { operator delete(page, (std::align_val_t)BLOCK_SIZE); }
 
         inline const char *raw_page() { return this->page; }
         inline offset_t wal_end_off() { return this->max_wal_end_off; }
