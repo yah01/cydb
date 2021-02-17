@@ -38,7 +38,7 @@ namespace cyber
                 return OpStatus(OpError::Internal);
         }
 
-        virtual OpStatus set(std::string_view key, std::string value)
+        virtual OpStatus set(std::string_view key, std::string_view value)
         {
             if (inner == nullptr)
                 return OpStatus(OpError::DbNotInit);

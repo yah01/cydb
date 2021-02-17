@@ -91,7 +91,7 @@ namespace cyber
 
         virtual len_t key_len() const = 0;
         virtual size_t size() const = 0;
-        virtual std::string key_string() = 0;
+        virtual std::string_view key_str() = 0;
         virtual void write_key(const char *key, const len_t n) = 0;
         virtual void write_key(std::string_view key) { write_key(key.data(), static_cast<len_t>(key.length())); }
         friend auto operator<=>(const Cell &lhs, std::string_view rhs)
@@ -127,7 +127,7 @@ namespace cyber
         ~KeyCell() {}
         len_t key_len() const override { return header->key_size; }
         size_t size() const override { return KEY_CELL_HEADER_SIZE + header->key_size; }
-        std::string key_string() override { return std::string(key, header->key_size); }
+        std::string_view key_str() override { return std::string_view(key, header->key_size); }
         void write_key(const char *key, const len_t n) override { memcpy(this->key, key, header->key_size = n); }
         using Cell::write_key;
         // void write_key(std::string_view key) override { Cell::write_key(key); }
@@ -158,13 +158,13 @@ namespace cyber
 
         len_t key_len() const override { return header->key_size; }
         size_t size() const override { return KEY_CELL_HEADER_SIZE + header->key_size + header->value_size; }
-        std::string key_string() override { return std::string(key, header->key_size); }
+        std::string_view key_str() override { return std::string_view(key, header->key_size); }
         void write_key(const char *key, const len_t n) override { memcpy(this->key, key, header->key_size = n); }
         // void write_key(std::string_view key) override { Cell::write_key(key); }
         using Cell::write_key;
 
         inline len_t value_len() const { return header->value_size; }
-        std::string value_string() const { return std::string(value, header->value_size); }
+        std::string_view value_str() const { return std::string_view(value, header->value_size); }
         inline void write_value(const char *value, const len_t n) { memcpy(this->value, value, header->value_size = n); }
         inline void write_value(std::string_view value) { write_value(value.data(), static_cast<len_t>(value.length())); }
     };
@@ -312,7 +312,7 @@ namespace cyber
                 if (free_space() >= kvcell.size() - kvcell.value_len() + value.length())
                 {
                     remove_cell(index);
-                    offset_t cell_offset = insert_kvcell(kvcell.key_string(), value);
+                    offset_t cell_offset = insert_kvcell(kvcell.key_str(), value);
                     if (cell_offset == 0)
                         return std::nullopt;
 
@@ -443,11 +443,11 @@ namespace cyber
         {
             if (header->type == CellType::KeyCell)
             {
-                return key_cell(i).key_string();
+                return key_cell(i).key_str();
             }
             else
             {
-                return key_value_cell(i).key_string();
+                return key_value_cell(i).key_str();
             }
         }
         inline size_t cell_size(uint32_t i)

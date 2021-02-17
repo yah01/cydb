@@ -35,10 +35,10 @@ namespace cyber
             {
                 return OpStatus(OpError::KeyNotFound);
             }
-            return OpStatus(OpError::Ok, kvcell.value_string());
+            return OpStatus(OpError::Ok, kvcell.value_str());
         };
 
-        virtual OpStatus set(std::string_view key, std::string value)
+        virtual OpStatus set(std::string_view key, std::string_view value)
         {
             auto [node, parent_map] = go_to_leaf(key);
             // there is still enough space
@@ -102,7 +102,7 @@ namespace cyber
             BTreeNode *sibling = buffer_manager.get(sibling_id);
 
             num_t n = node->data_num();
-            std::string key;
+            std::string_view key;
             uint32_t index = n / 2 + 1;
             for (auto i : iota(index, n))
             {
@@ -110,16 +110,16 @@ namespace cyber
                 {
                     KeyCell kcell(node->key_cell(index));
                     if (i == index)
-                        key = kcell.key_string();
+                        key = kcell.key_str();
                     else
-                        sibling->insert_child(kcell.key_string(), kcell.child());
+                        sibling->insert_child(kcell.key_str(), kcell.child());
                 }
                 else
                 {
                     KeyValueCell kvcell(node->key_value_cell(index));
-                    sibling->insert_value(kvcell.key_string(), kvcell.value_string());
+                    sibling->insert_value(kvcell.key_str(), kvcell.value_str());
                     if (i == index)
-                        key = kvcell.key_string();
+                        key = kvcell.key_str();
                 }
                 node->remove(index);
             }
