@@ -6,7 +6,6 @@
 namespace
 {
     using namespace cyber;
-    using namespace testing::internal;
 
     class BTreeTest : public ::testing::Test
     {
@@ -73,6 +72,25 @@ namespace
         catch (const std::exception &e)
         {
             ASSERT_TRUE(false) << e.what();
+        }
+    }
+
+    TEST_F(BTreeTest, bench)
+    {
+        for (int i = 0; i < 1000; i++)
+        {
+            auto s = engine->set(std::to_string(i), std::to_string(i));
+            ASSERT_EQ(s.err, OpError::Ok);
+
+            s = engine->get(std::to_string(i));
+            ASSERT_EQ(s.err, OpError::Ok) << "failed at " << i;
+            ASSERT_EQ(s.value, std::to_string(i)) << "failed at " << i;
+
+            s = engine->remove(std::to_string(i));
+            ASSERT_EQ(s.err, OpError::Ok) << "failed at " << i;
+
+            s = engine->get(std::to_string(i));
+            ASSERT_EQ(s.err, OpError::KeyNotFound) << "failed at " << i;
         }
     }
 

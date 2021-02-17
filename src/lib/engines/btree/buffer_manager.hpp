@@ -38,7 +38,7 @@ namespace cyber
         Metadata metadata;
 
         // TODO: modify the default buffer size
-        BufferManager(size_t size = PAGE_SIZE) : buffer_size(size) {}
+        BufferManager(size_t size = PAGE_SIZE * 10) : buffer_size(size) {}
 
         ~BufferManager()
         {
