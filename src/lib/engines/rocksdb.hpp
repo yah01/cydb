@@ -22,7 +22,7 @@ namespace cyber
                 return OpStatus(OpError::Internal);
         }
 
-        virtual OpStatus get(const std::string &key)
+        virtual OpStatus get(std::string_view key)
         {
             if (inner == nullptr)
                 return OpStatus(OpError::DbNotInit);
@@ -38,7 +38,7 @@ namespace cyber
                 return OpStatus(OpError::Internal);
         }
 
-        virtual OpStatus set(const std::string &key, std::string value)
+        virtual OpStatus set(std::string_view key, std::string value)
         {
             if (inner == nullptr)
                 return OpStatus(OpError::DbNotInit);
@@ -51,7 +51,7 @@ namespace cyber
                 return OpStatus(OpError::Internal);
         }
 
-        virtual OpStatus remove(const std::string &key)
+        virtual OpStatus remove(std::string_view key)
         {
             if (inner == nullptr)
                 return OpStatus(OpError::DbNotInit);
@@ -66,7 +66,7 @@ namespace cyber
                 return OpStatus(OpError::Internal);
         }
 
-        virtual OpStatus scan(const std::string &start_key, const std::string &end_key)
+        virtual OpStatus scan(std::string_view start_key, std::string_view end_key)
         {
             if (inner == nullptr)
                 return OpStatus(OpError::DbNotInit);

@@ -28,10 +28,10 @@ namespace cyber
     {
     public:
         virtual OpStatus open(const char *path) = 0;
-        virtual OpStatus get(const std::string &key) = 0;
-        virtual OpStatus set(const std::string &key, std::string value) = 0;
-        virtual OpStatus remove(const std::string &key) = 0;
-        virtual OpStatus scan(const std::string &start_key, const std::string &end_key) = 0;
+        virtual OpStatus get(std::string_view key) = 0;
+        virtual OpStatus set(std::string_view key, std::string value) = 0;
+        virtual OpStatus remove(std::string_view key) = 0;
+        virtual OpStatus scan(std::string_view start_key, std::string_view end_key) = 0;
         virtual ~KvEngine(){}
     };
 } // namespace cyber

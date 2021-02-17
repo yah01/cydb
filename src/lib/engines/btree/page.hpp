@@ -42,7 +42,7 @@ namespace cyber
         len_t key_size;
         id_t child_id;
 
-        KeyCellHeader(const std::string &key, const id_t &child_id) : key_size(static_cast<len_t>(key.length())),
+        KeyCellHeader(std::string_view key, const id_t &child_id) : key_size(static_cast<len_t>(key.length())),
                                                                       child_id(child_id) {}
     };
 
@@ -51,7 +51,7 @@ namespace cyber
         len_t key_size;
         len_t value_size;
 
-        KeyValueCellHeader(const std::string &key, const std::string &value) : key_size(static_cast<len_t>(key.length())),
+        KeyValueCellHeader(std::string_view key, std::string_view value) : key_size(static_cast<len_t>(key.length())),
                                                                                value_size(static_cast<len_t>(value.length())) {}
     };
 
@@ -78,6 +78,7 @@ namespace cyber
     constexpr size_t KEY_CELL_HEADER_SIZE = sizeof(KeyCellHeader),
                      KEY_VALUE_CELL_HEADER_SIZE = sizeof(KeyValueCellHeader),
                      PAGE_HEADER_SIZE = sizeof(PageHeader); // Must be multiple of 8
+    static_assert(PAGE_HEADER_SIZE <= BLOCK_SIZE, "PageHeader too large");
     static_assert(PAGE_HEADER_SIZE % 8 == 0, "PAGE_HEADER_SIZE can't be divided by 8");
 
     class Cell
@@ -92,8 +93,8 @@ namespace cyber
         virtual size_t size() const = 0;
         virtual std::string key_string() = 0;
         virtual void write_key(const char *key, const len_t n) = 0;
-        virtual void write_key(const std::string &key) { write_key(key.c_str(), static_cast<len_t>(key.length())); }
-        friend auto operator<=>(const Cell &lhs, const std::string &rhs)
+        virtual void write_key(std::string_view key) { write_key(key.data(), static_cast<len_t>(key.length())); }
+        friend auto operator<=>(const Cell &lhs, std::string_view rhs)
         {
             for (auto i : iota(0ul, lhs.key_len() < rhs.length() ? lhs.key_len()
                                                                  : rhs.length()))
@@ -110,7 +111,7 @@ namespace cyber
             return lhs.key_len() < rhs.length() ? std::partial_ordering::less
                                                 : std::partial_ordering::greater;
         }
-        friend auto operator==(const Cell &lhs, const std::string &rhs) { return lhs <=> rhs == 0; }
+        friend auto operator==(const Cell &lhs, std::string_view rhs) { return lhs <=> rhs == 0; }
     };
     class KeyCell : public Cell
     {
@@ -129,7 +130,7 @@ namespace cyber
         std::string key_string() override { return std::string(key, header->key_size); }
         void write_key(const char *key, const len_t n) override { memcpy(this->key, key, header->key_size = n); }
         using Cell::write_key;
-        // void write_key(const std::string &key) override { Cell::write_key(key); }
+        // void write_key(std::string_view key) override { Cell::write_key(key); }
 
         id_t child() const { return header->child_id; }
         void write_child(const int32_t child_id) { header->child_id = child_id; }
@@ -159,13 +160,13 @@ namespace cyber
         size_t size() const override { return KEY_CELL_HEADER_SIZE + header->key_size + header->value_size; }
         std::string key_string() override { return std::string(key, header->key_size); }
         void write_key(const char *key, const len_t n) override { memcpy(this->key, key, header->key_size = n); }
-        // void write_key(const std::string &key) override { Cell::write_key(key); }
+        // void write_key(std::string_view key) override { Cell::write_key(key); }
         using Cell::write_key;
 
         inline len_t value_len() const { return header->value_size; }
         std::string value_string() const { return std::string(value, header->value_size); }
         inline void write_value(const char *value, const len_t n) { memcpy(this->value, value, header->value_size = n); }
-        inline void write_value(const std::string &value) { write_value(value.c_str(), static_cast<len_t>(value.length())); }
+        inline void write_value(std::string_view value) { write_value(value.data(), static_cast<len_t>(value.length())); }
     };
 
     class BTreeNode
@@ -224,14 +225,14 @@ namespace cyber
         }
 
         // KeyCell methods
-        num_t find_child_index(const std::string &key)
+        num_t find_child_index(std::string_view key)
         {
-            return static_cast<num_t>(std::upper_bound(pointers, pointers + header->data_num, key, [&](const std::string &key, const offset_t &offset) {
+            return static_cast<num_t>(std::upper_bound(pointers, pointers + header->data_num, key, [&](std::string_view key, const offset_t &offset) {
                                           return KeyCell(page + offset) > key;
                                       }) -
                                       pointers);
         }
-        id_t find_child(const std::string &key)
+        id_t find_child(std::string_view key)
         {
             num_t index = find_child_index(key);
             if (index < header->data_num)
@@ -255,11 +256,11 @@ namespace cyber
             key_cell(index).write_child(child);
             return pointers[index];
         }
-        std::optional<offset_t> insert_child(const std::string &key, const id_t child)
+        std::optional<offset_t> insert_child(std::string_view key, const id_t child)
         {
             Record *rec = LogicalRecord::new_record(wal.gen_id(), page_id,
                                                     RecordType::Insert, key.length(), sizeof(child),
-                                                    key.c_str(), (char *)&child);
+                                                    key.data(), (char *)&child);
             max_wal_end_off = wal.log(*rec);
             delete[]((char *)rec);
 
@@ -288,18 +289,18 @@ namespace cyber
 
         // equal to lower_bound
         // return value -1 means there is no entry.
-        num_t find_value_index(const std::string &key)
+        num_t find_value_index(std::string_view key)
         {
-            return std::lower_bound(pointers, pointers + header->data_num, key, [&](const offset_t &offset, const std::string &key) {
+            return std::lower_bound(pointers, pointers + header->data_num, key, [&](const offset_t &offset, std::string_view key) {
                        return KeyValueCell(page + offset) < key;
                    }) -
                    pointers;
         }
-        std::optional<offset_t> update_value(num_t index, const std::string &value)
+        std::optional<offset_t> update_value(num_t index, std::string_view value)
         {
             Record *rec = LogicalRecord::new_record(wal.gen_id(), page_id,
                                                     RecordType::Update, sizeof(index), value.length(),
-                                                    (char *)&index, value.c_str());
+                                                    (char *)&index, value.data());
             max_wal_end_off = wal.log(*rec);
             delete[]((char *)rec);
 
@@ -331,11 +332,11 @@ namespace cyber
         }
         // return value: the offset of the new cell
         // return 0 when there is no enough free space
-        std::optional<offset_t> insert_value(const std::string &key, const std::string &value)
+        std::optional<offset_t> insert_value(std::string_view key, std::string_view value)
         {
             Record *rec = LogicalRecord::new_record(wal.gen_id(), page_id,
                                                     RecordType::Insert, key.length(), value.length(),
-                                                    key.c_str(), value.c_str());
+                                                    key.data(), value.data());
             max_wal_end_off = wal.log(*rec);
             delete[]((char *)rec);
 
@@ -487,7 +488,7 @@ namespace cyber
 
         // KeyCell methods
         // you should grantee there is enough free space
-        offset_t insert_kcell(const std::string &key, const id_t &child)
+        offset_t insert_kcell(std::string_view key, const id_t &child)
         {
             size_t kcell_size = KEY_CELL_HEADER_SIZE + key.length();
             auto it = ranges::find_if(available_list, [&kcell_size](const AvailableEntry &entry) {
@@ -525,7 +526,7 @@ namespace cyber
         // no side effects insert
         // header and pointers will not be modified
         // you should grantee there is enough free space
-        offset_t insert_kvcell(const std::string &key, const std::string &value)
+        offset_t insert_kvcell(std::string_view key, std::string_view value)
         {
             size_t kvcell_size = KEY_VALUE_CELL_HEADER_SIZE + key.length() + value.length();
             auto it = ranges::find_if(available_list, [&kvcell_size](const AvailableEntry &entry) {

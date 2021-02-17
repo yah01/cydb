@@ -19,7 +19,7 @@ namespace cyber
             return buffer_manager.open(dir_path);
         };
 
-        virtual OpStatus get(const std::string &key)
+        virtual OpStatus get(std::string_view key)
         {
             BTreeNode *node;
             std::tie(node, std::ignore) = go_to_leaf(key);
@@ -38,7 +38,7 @@ namespace cyber
             return OpStatus(OpError::Ok, kvcell.value_string());
         };
 
-        virtual OpStatus set(const std::string &key, std::string value)
+        virtual OpStatus set(std::string_view key, std::string value)
         {
             auto [node, parent_map] = go_to_leaf(key);
             // there is still enough space
@@ -66,7 +66,7 @@ namespace cyber
             return OpStatus(OpError::Ok);
         };
 
-        virtual OpStatus remove(const std::string &key)
+        virtual OpStatus remove(std::string_view key)
         {
             BTreeNode *node;
             std::tie(node, std::ignore) = go_to_leaf(key);
@@ -81,7 +81,7 @@ namespace cyber
             return OpStatus(OpError::Ok);
         };
 
-        virtual OpStatus scan(const std::string &start_key, const std::string &end_key)
+        virtual OpStatus scan(std::string_view start_key, std::string_view end_key)
         {
             return OpStatus(OpError::Internal);
         };
@@ -161,12 +161,12 @@ namespace cyber
             return parent_id;
         }
         // utils
-        std::tuple<BTreeNode *, std::unordered_map<uint32_t, uint32_t>> go_to_leaf(const std::string &key)
+        std::tuple<BTreeNode *, std::unordered_map<uint32_t, uint32_t>> go_to_leaf(std::string_view key)
         {
             BTreeNode *node = buffer_manager.get_root();
             return go_to_leaf(node, key);
         }
-        std::tuple<BTreeNode *, std::unordered_map<uint32_t, uint32_t>> go_to_leaf(BTreeNode *node, const std::string &key)
+        std::tuple<BTreeNode *, std::unordered_map<uint32_t, uint32_t>> go_to_leaf(BTreeNode *node, std::string_view key)
         {
             std::unordered_map<uint32_t, uint32_t> parent_map;
 

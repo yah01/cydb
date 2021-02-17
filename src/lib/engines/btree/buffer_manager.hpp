@@ -7,6 +7,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 
+#include "engines/type.h"
 #include "engines/kv_engine.hpp"
 
 #include "page.hpp"
@@ -38,7 +39,7 @@ namespace cyber
         Metadata metadata;
 
         // TODO: modify the default buffer size
-        BufferManager(size_t size = PAGE_SIZE * 10) : buffer_size(size) {}
+        BufferManager(size_t size = 2 * gb) : buffer_size(size) {}
 
         ~BufferManager()
         {
@@ -173,14 +174,14 @@ namespace cyber
         inline void unpin(const id_t &page_id) { pinned_page.erase(page_id); }
         id_t allocate_page(CellType cell_type)
         {
-            char *buf = (char *)operator new(PAGE_SIZE, (std::align_val_t)BLOCK_SIZE);
+            static char *buf = (char *)operator new(BLOCK_SIZE, (std::align_val_t)BLOCK_SIZE);
             PageHeader *header = (PageHeader *)buf;
             header->type = cell_type;
             header->cell_end = PAGE_SIZE;
             header->rightmost_child = metadata.node_num;
             header->checksum = header->header_checksum();
 
-            ssize_t n = pwrite64(data_file, header, PAGE_SIZE, page_off(metadata.node_num));
+            ssize_t n = pwrite64(data_file, header, BLOCK_SIZE, page_off(metadata.node_num));
             if (n == -1)
             {
                 std::cerr << "write data_file: " << strerror(errno);

@@ -106,7 +106,7 @@ namespace
         ASSERT_EQ(s.err, OpError::Ok);
         s = engine->get("hello");
         ASSERT_EQ(s.err, OpError::Ok);
-        ASSERT_STREQ(s.value.c_str(), "world") << "s.value = " << s.value;
+        ASSERT_STREQ(s.value.data(), "world") << "s.value = " << s.value;
 
         s = engine->set("cyber", "yah2er0ne");
         ASSERT_EQ(s.err, OpError::Ok);
@@ -122,7 +122,7 @@ namespace
 
         s = engine->get("cyber");
         ASSERT_EQ(s.err, OpError::Ok);
-        ASSERT_STREQ(s.value.c_str(), "yah2er0ne") << "s.value = " << s.value;
+        ASSERT_STREQ(s.value.data(), "yah2er0ne") << "s.value = " << s.value;
     }
 
     TEST_F(BTreeTest, reopen)
@@ -132,6 +132,6 @@ namespace
 
         s = engine->get("cyber");
         ASSERT_EQ(s.err, OpError::Ok);
-        ASSERT_STREQ(s.value.c_str(), "yah2er0ne") << "s.value = " << s.value;
+        ASSERT_STREQ(s.value.data(), "yah2er0ne") << "s.value = " << s.value;
     }
 } // namespace

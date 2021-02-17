@@ -20,7 +20,7 @@ namespace cyber
     // public:
     //     Context(const uint64_t &id) : id(id) { timestamp = chrono::steady_clock::now(); }
 
-    //     std::optional<std::any&> get(const std::string &key)
+    //     std::optional<std::any&> get(std::string_view key)
     //     {
     //         auto it = data.find(key);
     //         if (it == data.end())
@@ -28,12 +28,12 @@ namespace cyber
     //         return it->second;
     //     }
 
-    //     void set(const std::string &key, const std::any &value)
+    //     void set(std::string_view key, const std::any &value)
     //     {
     //         data.insert_or_assign(key, value);
     //     }
 
-    //     void set(const std::string &key, std::any &&value)
+    //     void set(std::string_view key, std::any &&value)
     //     {
     //         data.insert_or_assign(key, std::move(value));
     //     }
