@@ -160,7 +160,7 @@ namespace cyber
                     return nullptr;
                 }
 
-                res = new BTreeNode(page_id, page, wal);
+                res = new BTreeNode(page_id, page, &wal);
                 buffer_map[page_id] = res;
             }
 

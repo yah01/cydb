@@ -43,7 +43,7 @@ namespace cyber
         id_t child_id;
 
         KeyCellHeader(std::string_view key, const id_t &child_id) : key_size(static_cast<len_t>(key.length())),
-                                                                      child_id(child_id) {}
+                                                                    child_id(child_id) {}
     };
 
     struct KeyValueCellHeader
@@ -52,7 +52,7 @@ namespace cyber
         len_t value_size;
 
         KeyValueCellHeader(std::string_view key, std::string_view value) : key_size(static_cast<len_t>(key.length())),
-                                                                               value_size(static_cast<len_t>(value.length())) {}
+                                                                           value_size(static_cast<len_t>(value.length())) {}
     };
 
     struct PageHeader
@@ -175,7 +175,7 @@ namespace cyber
         const id_t page_id;
 
         // BTreeNode(uint32_t page_id) : page_id(page_id) {}
-        BTreeNode(id_t page_id, char *buf, WriteAheadLog &wal) : page_id(page_id), page(buf), wal(wal)
+        BTreeNode(id_t page_id, char *buf, WriteAheadLog *wal) : page_id(page_id), page(buf), wal(wal)
         {
             header = (PageHeader *)buf;
             pointers = (offset_t *)(buf + PAGE_HEADER_SIZE);
@@ -213,10 +213,10 @@ namespace cyber
         inline KeyValueCell key_value_cell_at(offset_t off) { return KeyValueCell(page + off); }
         void remove(num_t index)
         {
-            Record *rec = LogicalRecord::new_record(wal.gen_id(), page_id,
+            Record *rec = LogicalRecord::new_record(wal->gen_id(), page_id,
                                                     RecordType::Remove, sizeof(index), 0,
                                                     (char *)&index, nullptr);
-            max_wal_end_off = wal.log(*rec);
+            max_wal_end_off = wal->log(*rec);
             delete[]((char *)rec);
 
             remove_cell(index);
@@ -239,12 +239,28 @@ namespace cyber
                 return key_cell(index).child();
             return header->rightmost_child;
         }
+        bool can_hold_kcell(std::string_view key, const id_t &child)
+        {
+            size_t kcell_size = KEY_CELL_HEADER_SIZE + key.length();
+
+            if (free_space() >= kcell_size + sizeof(offset_t))
+                return true;
+
+            auto it = ranges::find_if(available_list, [&kcell_size](const AvailableEntry &entry) {
+                return entry.len >= kcell_size;
+            });
+
+            if (it != available_list.end() && free_space() >= sizeof(offset_t))
+                return true;
+
+            return false;
+        }
         std::optional<offset_t> update_child(num_t index, const id_t &child)
         {
-            Record *rec = LogicalRecord::new_record(wal.gen_id(), page_id,
+            Record *rec = LogicalRecord::new_record(wal->gen_id(), page_id,
                                                     RecordType::Update, sizeof(index), sizeof(child),
                                                     (char *)&index, (char *)&child);
-            max_wal_end_off = wal.log(*rec);
+            max_wal_end_off = wal->log(*rec);
             delete[]((char *)rec);
 
             if (index >= header->data_num)
@@ -258,10 +274,10 @@ namespace cyber
         }
         std::optional<offset_t> insert_child(std::string_view key, const id_t child)
         {
-            Record *rec = LogicalRecord::new_record(wal.gen_id(), page_id,
+            Record *rec = LogicalRecord::new_record(wal->gen_id(), page_id,
                                                     RecordType::Insert, key.length(), sizeof(child),
                                                     key.data(), (char *)&child);
-            max_wal_end_off = wal.log(*rec);
+            max_wal_end_off = wal->log(*rec);
             delete[]((char *)rec);
 
             num_t index = find_child_index(key);
@@ -284,7 +300,6 @@ namespace cyber
 
             return cell_offset;
         }
-
         // KeyValueCell methods
 
         // equal to lower_bound
@@ -296,12 +311,28 @@ namespace cyber
                    }) -
                    pointers;
         }
+        bool can_hold_kvcell(std::string_view key, std::string_view value)
+        {
+            size_t kvcell_size = KEY_VALUE_CELL_HEADER_SIZE + key.length() + value.length();
+
+            if (free_space() >= kvcell_size + sizeof(offset_t))
+                return true;
+
+            auto it = ranges::find_if(available_list, [&kvcell_size](const AvailableEntry &entry) {
+                return entry.len >= kvcell_size;
+            });
+
+            if (it != available_list.end() && free_space() >= sizeof(offset_t))
+                return true;
+
+            return false;
+        }
         std::optional<offset_t> update_value(num_t index, std::string_view value)
         {
-            Record *rec = LogicalRecord::new_record(wal.gen_id(), page_id,
+            Record *rec = LogicalRecord::new_record(wal->gen_id(), page_id,
                                                     RecordType::Update, sizeof(index), value.length(),
                                                     (char *)&index, value.data());
-            max_wal_end_off = wal.log(*rec);
+            max_wal_end_off = wal->log(*rec);
             delete[]((char *)rec);
 
             KeyValueCell kvcell(key_value_cell(index));
@@ -334,10 +365,10 @@ namespace cyber
         // return 0 when there is no enough free space
         std::optional<offset_t> insert_value(std::string_view key, std::string_view value)
         {
-            Record *rec = LogicalRecord::new_record(wal.gen_id(), page_id,
+            Record *rec = LogicalRecord::new_record(wal->gen_id(), page_id,
                                                     RecordType::Insert, key.length(), value.length(),
                                                     key.data(), value.data());
-            max_wal_end_off = wal.log(*rec);
+            max_wal_end_off = wal->log(*rec);
             delete[]((char *)rec);
 
             offset_t cell_offset = insert_kvcell(key, value);
@@ -593,6 +624,6 @@ namespace cyber
         std::list<AvailableEntry> available_list; // descending by offset
         len_t total_available_space = 0;
         offset_t max_wal_end_off = 0;
-        WriteAheadLog &wal;
+        WriteAheadLog *wal;
     };
 } // namespace cyber

@@ -1,5 +1,5 @@
 # the lib
-add_library(cydb_lib STATIC "")
+add_library(cydb_lib SHARED "")
 SET_TARGET_PROPERTIES(cydb_lib PROPERTIES LINKER_LANGUAGE CXX)
 
 find_library(ROCKSDB_LIB rocksdb)
