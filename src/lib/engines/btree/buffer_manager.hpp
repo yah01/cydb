@@ -181,6 +181,8 @@ namespace cyber
             header->rightmost_child = metadata.node_num;
             header->checksum = header->header_checksum();
 
+            fallocate64(data_file, 0, page_off(metadata.node_num), PAGE_SIZE);
+
             ssize_t n = pwrite64(data_file, header, BLOCK_SIZE, page_off(metadata.node_num));
             if (n == -1)
             {
@@ -189,6 +191,10 @@ namespace cyber
             }
 
             return metadata.node_num++;
+        }
+        void deallocate_page(id_t page_id)
+        {
+            fallocate64(data_file, FALLOC_FL_PUNCH_HOLE | FALLOC_FL_KEEP_SIZE, page_off(page_id), PAGE_SIZE);
         }
 
     private:

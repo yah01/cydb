@@ -24,6 +24,6 @@ add_subdirectory(${CMAKE_CURRENT_BINARY_DIR}/googletest-src
                  EXCLUDE_FROM_ALL)
 
 # Now simply link against gtest or gtest_main as needed. Eg
-add_executable(engine_unittest btree_unittest.cpp)
+add_executable(engine_unittest btree_unittest.cpp rocksdb_unittest.cpp)
 target_link_libraries(engine_unittest gtest_main cydb_lib)
 add_test(NAME engine_unittest COMMAND engine_unittest)
