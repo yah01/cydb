@@ -4,6 +4,9 @@
 #include <unordered_set>
 #include <unordered_map>
 #include <filesystem>
+#include <thread>
+#include <chrono>
+
 #include <fcntl.h>
 #include <unistd.h>
 
@@ -39,17 +42,20 @@ namespace cyber
         Metadata metadata;
 
         // TODO: modify the default buffer size
-        BufferManager(size_t size = 2 * gb) : buffer_size(size) {}
+        BufferManager(size_t size = 2 * gb) : buffer_size(size)
+        {
+            std::thread(&BufferManager::flush, this).detach();
+        }
 
         ~BufferManager()
         {
             offset_t max_wal_end_off = 0;
-            for (auto pair : buffer_map)
+            for (BTreeNode *node : dirty_pages)
             {
-                if (pair.second->wal_end_off() > max_wal_end_off)
-                    max_wal_end_off = pair.second->wal_end_off();
+                if (node->wal_end_off() > max_wal_end_off)
+                    max_wal_end_off = node->wal_end_off();
 
-                store_page(pair.second);
+                store_page(node);
             }
             wal.set_trim_off(max_wal_end_off);
 
@@ -120,7 +126,7 @@ namespace cyber
                     {
                         len_t value_len = rec.redo_len - record->key_len;
                         node->try_insert_value(record->key_string(),
-                                           record->value_string(value_len));
+                                               record->value_string(value_len));
                     }
                 }
                 else if (record->type == RecordType::Update)
@@ -172,6 +178,7 @@ namespace cyber
         inline BTreeNode *get_root() { return get(metadata.root_id); }
         inline void pin(const id_t page_id) { pinned_page.insert(page_id); }
         inline void unpin(const id_t page_id) { pinned_page.erase(page_id); }
+        inline void insert_into_dirty_pages(BTreeNode *node) { dirty_pages.insert(node); }
         id_t allocate_page(CellType cell_type)
         {
             static char *buf = (char *)operator new(BLOCK_SIZE, (std::align_val_t)BLOCK_SIZE);
@@ -269,6 +276,22 @@ namespace cyber
             return false;
         }
 
+        // background flush
+        void flush()
+        {
+            while (true)
+            {
+                std::this_thread::sleep_for(std::chrono::minutes(5));
+
+                std::erase_if(dirty_pages, [&](BTreeNode *node) {
+                    if (pinned_page.contains(node->page_id))
+                        return false;
+
+                    return this->store_page(node);
+                });
+            }
+        }
+
         // data members
         int data_file;
         fs::path dir;
@@ -276,6 +299,7 @@ namespace cyber
         size_t buffer_size;
         size_t current_size;
         std::unordered_map<uint32_t, BTreeNode *> buffer_map;
+        std::unordered_set<BTreeNode *> dirty_pages;
         std::unordered_set<uint32_t> pinned_page;
     };
 } // namespace cyber

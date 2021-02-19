@@ -26,15 +26,12 @@ namespace cyber
 
             num_t index = node->find_value_index(key);
             if (index >= node->data_num()) // no data in the node
-            {
                 return OpStatus(OpError::KeyNotFound);
-            }
 
             KeyValueCell kvcell(node->key_value_cell(index));
             if (kvcell != key) // key not found
-            {
                 return OpStatus(OpError::KeyNotFound);
-            }
+
             return OpStatus(OpError::Ok, kvcell.value_str());
         };
 
@@ -52,6 +49,7 @@ namespace cyber
                     id_t node_id = split(node, parent_map);
                     std::tie(node, parent_map) = go_to_leaf(buffer_manager.get(node_id), key);
                 }
+                buffer_manager.insert_into_dirty_pages(node);
             }
             else
             {
@@ -60,6 +58,7 @@ namespace cyber
                     id_t node_id = split(node, parent_map);
                     std::tie(node, parent_map) = go_to_leaf(buffer_manager.get(node_id), key);
                 }
+                buffer_manager.insert_into_dirty_pages(node);
                 buffer_manager.metadata.data_num++;
             }
 
@@ -73,7 +72,10 @@ namespace cyber
 
             num_t index = node->find_value_index(key);
             if (index < node->data_num() && key == node->key_value_cell(index))
+            {
                 node->remove(index);
+                buffer_manager.insert_into_dirty_pages(node);
+            }
             else
                 return OpStatus(OpError::KeyNotFound);
 
@@ -149,6 +151,8 @@ namespace cyber
 
             buffer_manager.unpin(node_id);
             buffer_manager.unpin(sibling_id);
+            buffer_manager.insert_into_dirty_pages(node);
+            buffer_manager.insert_into_dirty_pages(sibling);
 
             if (parent->try_insert_child(key, node_id) == std::nullopt)
             {
@@ -157,7 +161,9 @@ namespace cyber
                 parent->try_insert_child(key, node_id);
                 return anc;
             }
+
             buffer_manager.unpin(parent_id);
+            buffer_manager.insert_into_dirty_pages(parent);
             return parent_id;
         }
         // utils
