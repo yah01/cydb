@@ -148,7 +148,7 @@ namespace cyber
         }
 
         // node methods
-        BTreeNode *get(const id_t &page_id)
+        BTreeNode *get(const id_t page_id)
         {
             BTreeNode *res = nullptr;
 
@@ -170,8 +170,8 @@ namespace cyber
             return res;
         }
         inline BTreeNode *get_root() { return get(metadata.root_id); }
-        inline void pin(const id_t &page_id) { pinned_page.insert(page_id); }
-        inline void unpin(const id_t &page_id) { pinned_page.erase(page_id); }
+        inline void pin(const id_t page_id) { pinned_page.insert(page_id); }
+        inline void unpin(const id_t page_id) { pinned_page.erase(page_id); }
         id_t allocate_page(CellType cell_type)
         {
             static char *buf = (char *)operator new(BLOCK_SIZE, (std::align_val_t)BLOCK_SIZE);
@@ -199,7 +199,7 @@ namespace cyber
 
     private:
         // read page from disk
-        char *load_page(const id_t &page_id)
+        char *load_page(const id_t page_id)
         {
             char *page;
             try
@@ -234,7 +234,7 @@ namespace cyber
         }
 
         // load page to buffer pool
-        char *load(const id_t &page_id)
+        char *load(const id_t page_id)
         {
             // need to evict a page
             if (current_size + PAGE_SIZE > buffer_size)
@@ -254,7 +254,7 @@ namespace cyber
         {
             for (auto it : iota(buffer_map.begin(), buffer_map.end()))
             {
-                if (const id_t &id = it->second->page_id;
+                if (const id_t id = it->second->page_id;
                     pinned_page.find(id) == pinned_page.end())
                 {
                     if (!store_page(it->second))

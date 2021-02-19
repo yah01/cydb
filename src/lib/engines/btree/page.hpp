@@ -42,7 +42,7 @@ namespace cyber
         len_t key_size;
         id_t child_id;
 
-        KeyCellHeader(std::string_view key, const id_t &child_id) : key_size(static_cast<len_t>(key.length())),
+        KeyCellHeader(std::string_view key, const id_t child_id) : key_size(static_cast<len_t>(key.length())),
                                                                     child_id(child_id) {}
     };
 
@@ -227,7 +227,7 @@ namespace cyber
         // KeyCell methods
         num_t find_child_index(std::string_view key)
         {
-            return static_cast<num_t>(std::upper_bound(pointers, pointers + header->data_num, key, [&](std::string_view key, const offset_t &offset) {
+            return static_cast<num_t>(std::upper_bound(pointers, pointers + header->data_num, key, [&](std::string_view key, const offset_t offset) {
                                           return KeyCell(page + offset) > key;
                                       }) -
                                       pointers);
@@ -239,14 +239,14 @@ namespace cyber
                 return key_cell(index).child();
             return header->rightmost_child;
         }
-        bool can_hold_kcell(std::string_view key, const id_t &child)
+        bool can_hold_kcell(std::string_view key, const id_t child)
         {
             size_t kcell_size = KEY_CELL_HEADER_SIZE + key.length();
 
             if (free_space() >= kcell_size + sizeof(offset_t))
                 return true;
 
-            auto it = ranges::find_if(available_list, [&kcell_size](const AvailableEntry &entry) {
+            auto it = ranges::find_if(available_list, [kcell_size](const AvailableEntry &entry) {
                 return entry.len >= kcell_size;
             });
 
@@ -255,7 +255,7 @@ namespace cyber
 
             return false;
         }
-        std::optional<offset_t> update_child(num_t index, const id_t &child)
+        std::optional<offset_t> update_child(num_t index, const id_t child)
         {
             Record *rec = LogicalRecord::new_record(wal->gen_id(), page_id,
                                                     RecordType::Update, sizeof(index), sizeof(child),
@@ -306,7 +306,7 @@ namespace cyber
         // return value -1 means there is no entry.
         num_t find_value_index(std::string_view key)
         {
-            return std::lower_bound(pointers, pointers + header->data_num, key, [&](const offset_t &offset, std::string_view key) {
+            return std::lower_bound(pointers, pointers + header->data_num, key, [&](const offset_t offset, std::string_view key) {
                        return KeyValueCell(page + offset) < key;
                    }) -
                    pointers;
@@ -318,7 +318,7 @@ namespace cyber
             if (free_space() >= kvcell_size + sizeof(offset_t))
                 return true;
 
-            auto it = ranges::find_if(available_list, [&kvcell_size](const AvailableEntry &entry) {
+            auto it = ranges::find_if(available_list, [kvcell_size](const AvailableEntry &entry) {
                 return entry.len >= kvcell_size;
             });
 
@@ -519,10 +519,10 @@ namespace cyber
 
         // KeyCell methods
         // you should grantee there is enough free space
-        offset_t insert_kcell(std::string_view key, const id_t &child)
+        offset_t insert_kcell(std::string_view key, const id_t child)
         {
             size_t kcell_size = KEY_CELL_HEADER_SIZE + key.length();
-            auto it = ranges::find_if(available_list, [&kcell_size](const AvailableEntry &entry) {
+            auto it = ranges::find_if(available_list, [kcell_size](const AvailableEntry &entry) {
                 return entry.len >= kcell_size;
             });
 
@@ -560,7 +560,7 @@ namespace cyber
         offset_t insert_kvcell(std::string_view key, std::string_view value)
         {
             size_t kvcell_size = KEY_VALUE_CELL_HEADER_SIZE + key.length() + value.length();
-            auto it = ranges::find_if(available_list, [&kvcell_size](const AvailableEntry &entry) {
+            auto it = ranges::find_if(available_list, [kvcell_size](const AvailableEntry &entry) {
                 return entry.len >= kvcell_size;
             });
 
