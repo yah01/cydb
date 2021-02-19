@@ -74,7 +74,6 @@ namespace cyber
             dir = fs::path(dir_path);
 
             wal.open(dir.c_str());
-            posix_fallocate64()
 
             fs::path data_file_path, metadata_path;
             data_file_path = dir / "data";
