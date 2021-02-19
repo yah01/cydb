@@ -239,7 +239,7 @@ namespace cyber
                 return key_cell(index).child();
             return header->rightmost_child;
         }
-        bool can_hold_kcell(std::string_view key, const id_t child)
+        bool can_hold_kcell(std::string_view key)
         {
             size_t kcell_size = KEY_CELL_HEADER_SIZE + key.length();
 
