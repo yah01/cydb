@@ -114,12 +114,12 @@ namespace cyber
                     if (node->type() == CellType::KeyCell)
                     {
                         id_t *child_id = (id_t *)(record->record + record->key_len);
-                        node->insert_child(record->key_string(), *child_id);
+                        node->try_insert_child(record->key_string(), *child_id);
                     }
                     else
                     {
                         len_t value_len = rec.redo_len - record->key_len;
-                        node->insert_value(record->key_string(),
+                        node->try_insert_value(record->key_string(),
                                            record->value_string(value_len));
                     }
                 }
@@ -129,12 +129,12 @@ namespace cyber
                     if (node->type() == CellType::KeyCell)
                     {
                         id_t *child_id = (id_t *)(record->record + record->key_len);
-                        node->update_child(*index, *child_id);
+                        node->try_update_child(*index, *child_id);
                     }
                     else
                     {
                         len_t value_len = rec.redo_len - record->key_len;
-                        node->update_value(*index, record->value_string(value_len));
+                        node->try_update_value(*index, record->value_string(value_len));
                     }
                 }
                 else if (record->type == RecordType::Remove)

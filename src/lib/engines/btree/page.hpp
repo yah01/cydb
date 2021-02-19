@@ -255,7 +255,7 @@ namespace cyber
 
             return false;
         }
-        std::optional<offset_t> update_child(num_t index, const id_t child)
+        std::optional<offset_t> try_update_child(num_t index, const id_t child)
         {
             Record *rec = LogicalRecord::new_record(wal->gen_id(), page_id,
                                                     RecordType::Update, sizeof(index), sizeof(child),
@@ -272,7 +272,7 @@ namespace cyber
             key_cell(index).write_child(child);
             return pointers[index];
         }
-        std::optional<offset_t> insert_child(std::string_view key, const id_t child)
+        std::optional<offset_t> try_insert_child(std::string_view key, const id_t child)
         {
             Record *rec = LogicalRecord::new_record(wal->gen_id(), page_id,
                                                     RecordType::Insert, key.length(), sizeof(child),
@@ -327,7 +327,7 @@ namespace cyber
 
             return false;
         }
-        std::optional<offset_t> update_value(num_t index, std::string_view value)
+        std::optional<offset_t> try_update_value(num_t index, std::string_view value)
         {
             Record *rec = LogicalRecord::new_record(wal->gen_id(), page_id,
                                                     RecordType::Update, sizeof(index), value.length(),
@@ -363,7 +363,7 @@ namespace cyber
         }
         // return value: the offset of the new cell
         // return 0 when there is no enough free space
-        std::optional<offset_t> insert_value(std::string_view key, std::string_view value)
+        std::optional<offset_t> try_insert_value(std::string_view key, std::string_view value)
         {
             Record *rec = LogicalRecord::new_record(wal->gen_id(), page_id,
                                                     RecordType::Insert, key.length(), value.length(),

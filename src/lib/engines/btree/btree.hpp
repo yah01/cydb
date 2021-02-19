@@ -47,7 +47,7 @@ namespace cyber
             {
                 // new value length is greater than the old value's
                 // and the node has no enough free space
-                while (node->update_value(index, value) == std::nullopt)
+                while (node->try_update_value(index, value) == std::nullopt)
                 {
                     id_t node_id = split(node, parent_map);
                     std::tie(node, parent_map) = go_to_leaf(buffer_manager.get(node_id), key);
@@ -55,7 +55,7 @@ namespace cyber
             }
             else
             {
-                while (node->insert_value(key, value) == std::nullopt)
+                while (node->try_insert_value(key, value) == std::nullopt)
                 {
                     id_t node_id = split(node, parent_map);
                     std::tie(node, parent_map) = go_to_leaf(buffer_manager.get(node_id), key);
@@ -112,12 +112,12 @@ namespace cyber
                     if (i == index)
                         key = kcell.key_str();
                     else
-                        sibling->insert_child(kcell.key_str(), kcell.child());
+                        sibling->try_insert_child(kcell.key_str(), kcell.child());
                 }
                 else
                 {
                     KeyValueCell kvcell(node->key_value_cell(index));
-                    sibling->insert_value(kvcell.key_str(), kvcell.value_str());
+                    sibling->try_insert_value(kvcell.key_str(), kvcell.value_str());
                     if (i == index)
                         key = kvcell.key_str();
                 }
@@ -144,17 +144,17 @@ namespace cyber
                 if (node_id == parent->rightmost_child())
                     parent->rightmost_child() = sibling_id;
                 else
-                    parent->update_child(parent->find_child_index(key), sibling_id);
+                    parent->try_update_child(parent->find_child_index(key), sibling_id);
             }
 
             buffer_manager.unpin(node_id);
             buffer_manager.unpin(sibling_id);
 
-            if (parent->insert_child(key, node_id) == std::nullopt)
+            if (parent->try_insert_child(key, node_id) == std::nullopt)
             {
                 uint32_t anc = split(parent, parent_map);
-                buffer_manager.get(parent_id)->insert_child(key, node_id);
-                parent->insert_child(key, node_id);
+                buffer_manager.get(parent_id)->try_insert_child(key, node_id);
+                parent->try_insert_child(key, node_id);
                 return anc;
             }
             buffer_manager.unpin(parent_id);
